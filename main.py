@@ -36,7 +36,6 @@ variables = ['MisleadingHealthInfo',
              'WorkFullTime',
              'NoticeCalorieInfoOnMenu',
              'WearableDevTrackHealth',
-             'UsedHealthWellnessApps2',  
              'EthnicGroupBelonging',
              'ConfidentInternetHealth',
              'ConfidentMedForms',
@@ -106,12 +105,6 @@ for target in yes_no_questions:
         'No' : 0,
         'Yes' : 1
     })   
-    
-data['UsedHealthWellnessApps2'] = data['UsedHealthWellnessApps2'].replace({
-    'No' : 0,
-    'Yes' : 1,
-    'I don\'t have any health apps on my tablet or smartphone' : 0
-})
 
 data['EthnicGroupBelonging'] = data['EthnicGroupBelonging'].replace({
     'Strongly disagree' : 0,
@@ -136,8 +129,8 @@ for target in B14 :
         'Somewhat disagree' : 1,
         'Somewhat agree' : 2,
         'Strongly agree' : 3,
-        'Strongle agree' : 4,
-        'Strongle agree' : 5
+        'Strongle agree' : 3,
+        'Strongle agree' : 3
     })
 
 B12 = ['SocMed_Visited', 'SocMed_SharedPers', 'SocMed_SharedGen', 'SocMed_Interacted', 'SocMed_WatchedVid']
@@ -298,8 +291,8 @@ X_model_1 = ['Age',
              'MaritalStatus',
              'BirthGender',
              'SocMed_DiscussHCP',
-             # 'MedConditions_Depression',
              'SmokeNow',
+             'TimesModerateExercise',
             ]
 X_model_2 = X_model_1 + B12
 X_model_3 = X_model_2 + ['MisleadingHealthInfo']
@@ -368,7 +361,7 @@ for i, X in enumerate(models, 1):
     model = sm.OLS(y_train, X_train_const).fit()
 
     # 모델 요약 결과 출력
-    # print(model.summary())
+    print(model.summary())
 
     # 랜덤 포레스트 모델 훈련
     rf_model = RandomForestClassifier(n_estimators=300,  class_weight='balanced', max_depth=8, min_samples_split=5, random_state=42)
@@ -417,12 +410,30 @@ plt.title("Histogram of Residuals")
 plt.xlabel("Residuals")
 plt.ylabel("Frequency")
 plt.grid()
+plt.show()
 
-# 그림 저장
-plt.savefig("residuals_histogram.png", dpi=300, bbox_inches="tight")
-plt.close()  # plot 창 닫기
+# # 그림 저장
+# plt.savefig("residuals_histogram.png", dpi=300, bbox_inches="tight")
+# plt.close()  # plot 창 닫기
 
-from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+# 랜덤 포레스트의 Feature Importance
+feature_importances = rf_model.feature_importances_
+feature_names = X_train.columns
+importance_df = pd.DataFrame({'Feature': feature_names, 'Importance': feature_importances})
+importance_df = importance_df.sort_values(by='Importance', ascending=False)
 
-# y_test와 y_pred는 다중 클래스 실제값과 예측값
-cm = confusion_matrix(y_test, y_pred)
+# 실제 값과 예측 값 비교
+plt.figure(figsize=(10, 6))
+plt.scatter(y_test, y_pred, alpha=0.6)
+plt.plot([min(y_test), max(y_test)], [min(y_test), max(y_test)], '--r', linewidth=2)  # 완벽한 예측선
+plt.title("Actual vs Predicted Values")
+plt.xlabel("Actual Values")
+plt.ylabel("Predicted Values")
+plt.grid()
+plt.show()
+
+from sklearn.inspection import plot_partial_dependence
+
+# 특정 feature에 대한 Partial Dependence Plot
+plot_partial_dependence(rf_model, X_train, features=[0, 1, 2], feature_names=X_train.columns)
+plt.show()
