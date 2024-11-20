@@ -9,10 +9,10 @@ Data Set
 from HINTS  
 (Health Information National Trends Survey), 2022
 
-https://hints.cancer.gov/data/download-data.aspx
+https://hints.cancer.gov/data/download-data.aspx  
 Explanation on variables are written in Instrument file named <HINTS6-AnnotatedEnglishInstrument>
 
-  ---
+---
 Model Used  
 * Linear Regression  
 * Random Forest  
