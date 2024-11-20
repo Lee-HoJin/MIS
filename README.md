@@ -1,4 +1,7 @@
-# 2024 Fall Semester Management Information Systems Case Study
+# 2024 Fall Semester  
+# Management Information Systems Case Study
+
+---  
 
 ### Modeling and Results Explained
 https://docs.google.com/document/d/1ocHw1r0OCuX39ELoyhgPSyQwAMLkh3MD4CxrysaVX2E/edit?usp=sharing
@@ -17,3 +20,4 @@ Explanation on variables are written in Instrument file named <HINTS6-AnnotatedE
 * Linear Regression  
 * Random Forest  
 * TensorFlow  
+---
