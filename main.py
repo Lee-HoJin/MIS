@@ -397,7 +397,7 @@ for i, X in enumerate(models, 1):
     model_performance['Random Forest Accuracy'].append(accuracy)
     model_performance['F1-score'].append(f1)
     
-    
+
 # 성능 결과 출력
 performance_df = pd.DataFrame(model_performance)
 print(performance_df)
@@ -410,7 +410,7 @@ plt.title("Histogram of Residuals")
 plt.xlabel("Residuals")
 plt.ylabel("Frequency")
 plt.grid()
-plt.show()
+# plt.show()
 
 # # 그림 저장
 # plt.savefig("residuals_histogram.png", dpi=300, bbox_inches="tight")
@@ -430,10 +430,4 @@ plt.title("Actual vs Predicted Values")
 plt.xlabel("Actual Values")
 plt.ylabel("Predicted Values")
 plt.grid()
-plt.show()
-
-from sklearn.inspection import plot_partial_dependence
-
-# 특정 feature에 대한 Partial Dependence Plot
-plot_partial_dependence(rf_model, X_train, features=[0, 1, 2], feature_names=X_train.columns)
 plt.show()
