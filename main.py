@@ -340,8 +340,8 @@ for i, X in enumerate(models, 1):
     vif_data = pd.DataFrame()
     vif_data["Variable"] = X_train.columns
     vif_data["VIF"] = [variance_inflation_factor(X_train.values, i) for i in range(X_train.shape[1])]
-    print("Variance Inflation Factor:")
-    print(vif_data)
+    # print("Variance Inflation Factor:")
+    # print(vif_data)
 
     # 선형 회귀 모델 생성 및 학습
     linear_model = LinearRegression()
@@ -361,7 +361,7 @@ for i, X in enumerate(models, 1):
     model = sm.OLS(y_train, X_train_const).fit()
 
     # 모델 요약 결과 출력
-    print(model.summary())
+    # print(model.summary())
 
     # 랜덤 포레스트 모델 훈련
     rf_model = RandomForestClassifier(n_estimators=300,  class_weight='balanced', max_depth=8, min_samples_split=5, random_state=42)
@@ -378,17 +378,17 @@ for i, X in enumerate(models, 1):
     # F1-score 계산
     f1 = f1_score(y_test, y_pred_rf, average='micro')
     
-    # 교차 검증
-    cv_scores = cross_val_score(rf_model, X_train, y_train, cv=5)
+    # # 교차 검증
+    # cv_scores = cross_val_score(rf_model, X_train, y_train, cv=5)
     
-    # 각 폴드에서의 성능 점수 출력
-    print("Cross-validation scores:", cv_scores)
+    # # 각 폴드에서의 성능 점수 출력
+    # print("Cross-validation scores:", cv_scores)
 
-    # 평균 성능 출력
-    print("Mean CV score:", np.mean(cv_scores))
+    # # 평균 성능 출력
+    # print("Mean CV score:", np.mean(cv_scores))
 
-    # 표준편차 출력
-    print("Standard deviation of CV scores:", np.std(cv_scores))
+    # # 표준편차 출력
+    # print("Standard deviation of CV scores:", np.std(cv_scores))
 
     # 성능 기록
     model_performance['Model'].append(f'Model {i}')
@@ -402,32 +402,79 @@ for i, X in enumerate(models, 1):
 performance_df = pd.DataFrame(model_performance)
 print(performance_df)
 
-## 잔차 히스토그램
-residuals = y_test - y_pred
-plt.figure(figsize=(10, 6))
-sns.histplot(residuals, kde=True, bins=30, color="blue")
-plt.title("Histogram of Residuals")
-plt.xlabel("Residuals")
-plt.ylabel("Frequency")
-plt.grid()
+# ## 잔차 히스토그램
+# residuals = y_test - y_pred
+# plt.figure(figsize=(10, 6))
+# sns.histplot(residuals, kde=True, bins=30, color="blue")
+# plt.title("Histogram of Residuals")
+# plt.xlabel("Residuals")
+# plt.ylabel("Frequency")
+# plt.grid()
 # plt.show()
 
 # # 그림 저장
 # plt.savefig("residuals_histogram.png", dpi=300, bbox_inches="tight")
 # plt.close()  # plot 창 닫기
 
-# 랜덤 포레스트의 Feature Importance
-feature_importances = rf_model.feature_importances_
-feature_names = X_train.columns
-importance_df = pd.DataFrame({'Feature': feature_names, 'Importance': feature_importances})
-importance_df = importance_df.sort_values(by='Importance', ascending=False)
+# # 실제 값과 예측 값 비교
+# plt.figure(figsize=(10, 6))
+# plt.scatter(y_test, y_pred, alpha=0.6)
+# plt.plot([min(y_test), max(y_test)], [min(y_test), max(y_test)], '--r', linewidth=2)  # 완벽한 예측선
+# plt.title("Actual vs Predicted Values")
+# plt.xlabel("Actual Values")
+# plt.ylabel("Predicted Values")
+# plt.grid()
+# plt.show()
 
-# 실제 값과 예측 값 비교
-plt.figure(figsize=(10, 6))
-plt.scatter(y_test, y_pred, alpha=0.6)
-plt.plot([min(y_test), max(y_test)], [min(y_test), max(y_test)], '--r', linewidth=2)  # 완벽한 예측선
-plt.title("Actual vs Predicted Values")
-plt.xlabel("Actual Values")
-plt.ylabel("Predicted Values")
-plt.grid()
+from sklearn.metrics import mean_squared_error
+import tensorflow as tf
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Dropout
+from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow.keras.optimizers import Adam
+from sklearn.preprocessing import StandardScaler
+
+##### 텐서 플로우 활용
+tensor_y = data[y]
+
+# 데이터 스케일링
+from tensorflow.keras.regularizers import l2
+# from sklearn.preprocessing import MinMaxScaler
+
+scaler = StandardScaler()    
+# scaler = MinMaxScaler()
+tensor_x = scaler.fit_transform(data[X_model_3].values)
+
+# 훈련 및 테스트 데이터 분리
+X_train, X_test, y_train, y_test = train_test_split(tensor_x, tensor_y, test_size=0.2, random_state=42)
+
+# 텐서플로우 모델 설정
+model = Sequential([
+    Dense(32, activation='relu', input_shape=(X_train.shape[1],), kernel_regularizer=l2(0.01)),  # L2 정규화 추가
+    Dropout(0.3),
+    Dense(1, activation='linear')  # 분류 문제의 경우 sigmoid, 회귀 문제라면 'linear' 선택 가능
+])
+
+optimizer = Adam(learning_rate=0.01)
+
+model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+
+# 조기 종료 설정 (성능이 개선되지 않으면 학습 중단)
+early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+
+# 모델 학습
+history = model.fit(X_train, y_train, validation_split=0.2, epochs=100, batch_size=16, verbose = 0 , callbacks=[early_stopping])
+
+# 평가
+loss, accuracy = model.evaluate(X_test, y_test)
+print(f'Test Accuracy: {accuracy}')
+
+# 과적합 여부 확인 (훈련/검증 손실 시각화)
+import matplotlib.pyplot as plt
+
+plt.plot(history.history['loss'], label='Training Loss')
+plt.plot(history.history['val_loss'], label='Validation Loss')
+plt.xlabel('Epochs')
+plt.ylabel('Loss')
+plt.legend()
 plt.show()
