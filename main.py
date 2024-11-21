@@ -7,14 +7,10 @@ import matplotlib.pyplot as plt
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
-from sklearn.metrics import f1_score
 from sklearn.metrics import precision_score, recall_score, f1_score
 from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_squared_error, make_scorer
 from sklearn.model_selection import cross_val_score
-import matplotlib.pyplot as plt   
-from sklearn.metrics import confusion_matrix
-import seaborn as sns
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
 
@@ -312,15 +308,10 @@ scaled_data = scaler.fit_transform(data[['Age', 'IncomeFeelings']])
 # PCA 적용
 pca = PCA(n_components=1)  # 하나의 주성분만 생성
 data['Age_Income_PC1'] = pca.fit_transform(scaled_data)
-print(pca.components_)
+# print(pca.components_)
 
 
-X_model_1 = [#'Age',
-             # 'IncomeRanges',
-             #'IncomeFeelings',
-             # 'Education',
-             # 'Weight',
-             'Age_Income_PC1',
+X_model_1 = ['Age_Income_PC1',
              'MaritalStatus',
              'BirthGender', 
              'SocMed_DiscussHCP',
@@ -355,7 +346,7 @@ for target in ['MisleadingHealthInfo'] + X_model_3 + [y]:  # y를 리스트로 �
 
 ########################### Regression Part 회귀 분석 파트
 
-print(data['Age_Income_PC1'].value_counts())
+# print(data['Age_Income_PC1'].value_counts())
 
 # 성능 결과를 저장할 딕셔너리
 model_performance = {
@@ -366,26 +357,26 @@ model_performance = {
     'Random Forest Accuracy': [],
 }
 
-# 저장할 폴더 및 파일 경로 지정 (변경 가능)
-correlation_csv_path = "correlation_matrix_model_{i}.csv"
-vif_csv_path = "vif_model_{i}.csv"
+# # 저장할 폴더 및 파일 경로 지정 (변경 가능)
+# correlation_csv_path = "correlation_matrix_model_{i}.csv"
+# vif_csv_path = "vif_model_{i}.csv"
 
 # 각 모델에 대해 반복문 실행 후 성능 기록
 for i, X in enumerate(models, 1):
     # y 변수는 1D 배열로 변환
     X_train, X_test, y_train, y_test = train_test_split(data[X], data[y], test_size=0.2, random_state=42)
     
-    # 상관행렬 계산
-    correlation_matrix = data[X].corr()
-    # 상관행렬 CSV 저장
-    correlation_matrix.to_csv(correlation_csv_path.format(i=i), index=True)
-    print(f"Correlation matrix for Model {i} saved to {correlation_csv_path.format(i=i)}")
+    # # 상관행렬 계산
+    # correlation_matrix = data[X].corr()
+    # # 상관행렬 CSV 저장
+    # correlation_matrix.to_csv(correlation_csv_path.format(i=i), index=True)
+    # print(f"Correlation matrix for Model {i} saved to {correlation_csv_path.format(i=i)}")
     
     
-    # VIF 계산
-    vif_data = pd.DataFrame()
-    vif_data["Variable"] = X_train.columns
-    vif_data["VIF"] = [variance_inflation_factor(X_train.values, i) for i in range(X_train.shape[1])]
+    # # VIF 계산
+    # vif_data = pd.DataFrame()
+    # vif_data["Variable"] = X_train.columns
+    # vif_data["VIF"] = [variance_inflation_factor(X_train.values, i) for i in range(X_train.shape[1])]
     # print("Variance Inflation Factor:")
     # print(vif_data)
 
@@ -399,18 +390,36 @@ for i, X in enumerate(models, 1):
     # 평가
     mse = mean_squared_error(y_test, y_pred)
     r_squared = linear_model.score(X_test, y_test)
+
+    # 교차 검증 점수 계산 (평가 지표는 Mean Squared Error)
+    mse_scorer = make_scorer(mean_squared_error, greater_is_better=False)
+    cv_scores = cross_val_score(linear_model, X_train, y_train, cv=5, scoring=mse_scorer)
+
+    # 교차 검증 결과 출력
+    print("Cross-validation scores (MSE):", cv_scores)
+    print("Mean CV score (MSE):", np.mean(cv_scores))
+    print("Standard deviation of CV scores (MSE):", np.std(cv_scores))
+
     
     # 학습 데이터에 상수항 추가 (절편)
     X_train_const = sm.add_constant(X_train)
-
+    
+    
     # 선형 회귀 모델 생성 및 학습
     model = sm.OLS(y_train, X_train_const).fit()
 
     # 모델 요약 결과 출력
-    # print(model.summary())
-
+    print(model.summary())
+  
     # 랜덤 포레스트 모델 훈련
-    rf_model = RandomForestClassifier(n_estimators=300,  class_weight='balanced', max_depth=8, min_samples_split=5, random_state=42)
+    rf_model = RandomForestClassifier(
+        n_estimators=200,
+        class_weight='balanced',
+        max_depth=10,
+        min_samples_split=4,
+        min_samples_leaf=2,
+        random_state=42
+    )
 
     # 모델 학습
     rf_model.fit(X_train, y_train)
@@ -424,17 +433,29 @@ for i, X in enumerate(models, 1):
     # F1-score 계산
     f1 = f1_score(y_test, y_pred_rf, average='micro')
     
-    # 교차 검증
-    cv_scores = cross_val_score(rf_model, X_train, y_train, cv=5)
+    # # # 교차 검증
+    # cv_scores = cross_val_score(linear_model, X_train, y_train, cv=5)
     
-    # 각 폴드에서의 성능 점수 출력
-    print("Cross-validation scores:", cv_scores)
+    # # # 각 폴드에서의 성능 점수 출력
+    # print("Cross-validation scores:", cv_scores)
 
-    # 평균 성능 출력
-    print("Mean CV score:", np.mean(cv_scores))
+    # # # 평균 성능 출력
+    # print("Mean CV score:", np.mean(cv_scores))
 
-    # 표준편차 출력
-    print("Standard deviation of CV scores:", np.std(cv_scores))
+    # # # 표준편차 출력
+    # print("Standard deviation of CV scores:", np.std(cv_scores))
+    
+    # # 잔차 히스토그램
+    # residuals = y_test - y_pred_rf
+    # plt.figure(figsize=(10, 6))
+    # sns.histplot(residuals, kde=True, bins=30, color="blue")
+    # plt.title(f"Histogram of Residuals, Model {i}")
+    # plt.xlabel("Residuals")
+    # plt.ylabel("Frequency")
+    # plt.grid()
+    # # plt.show()
+    # plt.savefig(f"residuals_histogram_model_{i}.png", dpi=300, bbox_inches="tight")
+    # plt.close()
 
     # 성능 기록
     model_performance['Model'].append(f'Model {i}')
@@ -443,38 +464,10 @@ for i, X in enumerate(models, 1):
     model_performance['Random Forest Accuracy'].append(accuracy)
     model_performance['F1-score'].append(f1)
     
-
 # 성능 결과 출력
 performance_df = pd.DataFrame(model_performance)
 print(performance_df)
 
-# # 잔차 히스토그램
-# residuals = y_test - y_pred
-# plt.figure(figsize=(10, 6))
-# sns.histplot(residuals, kde=True, bins=30, color="blue")
-# plt.title("Histogram of Residuals")
-# plt.xlabel("Residuals")
-# plt.ylabel("Frequency")
-# plt.grid()
-# # plt.show()
-
-# # 그림 저장
-# plt.savefig("residuals_histogram.png", dpi=300, bbox_inches="tight")
-# plt.close()  # plot 창 닫기
-
-# # 실제 값과 예측 값 비교
-# plt.figure(figsize=(10, 6))
-# plt.scatter(y_test, y_pred, alpha=0.6)
-# plt.plot([min(y_test), max(y_test)], [min(y_test), max(y_test)], '--r', linewidth=2)  # 완벽한 예측선
-# plt.title("Actual vs Predicted Values")
-# plt.xlabel("Actual Values")
-# plt.ylabel("Predicted Values")
-# plt.grid()
-# # plt.show()
-
-# # 그림 저장
-# plt.savefig("actual_predicted.png", dpi=300, bbox_inches="tight")
-# plt.close()  # plot 창 닫기
 
 # from sklearn.metrics import mean_squared_error
 # import tensorflow as tf
@@ -483,52 +476,110 @@ print(performance_df)
 # from tensorflow.keras.callbacks import EarlyStopping
 # from tensorflow.keras.optimizers import Adam
 # from sklearn.preprocessing import StandardScaler
-
-# ##### 텐서 플로우 활용
-# tensor_y = data[y]
-
-# # 데이터 스케일링
+# from keras.utils import to_categorical
 # from tensorflow.keras.regularizers import l2
-# # from sklearn.preprocessing import MinMaxScaler
+    
+# for i, X in enumerate(models, 1):
+#     ##### 텐서 플로우 활용
+#     tensor_y = data[y]
 
-# scaler = StandardScaler()    
-# # scaler = MinMaxScaler()
-# tensor_x = scaler.fit_transform(data[X_model_3].values)
+#     # 데이터 스케일링
+#     scaler = StandardScaler()  
+#     tensor_x = scaler.fit_transform(data[X].values)    
+    
+#     X_train, X_test, y_train, y_test = train_test_split(tensor_x, tensor_y, test_size=0.2, random_state=42)
+        
+#     # 모델 설정 (다중 클래스 분류 모델)
+#     model = Sequential()
 
-# # 훈련 및 테스트 데이터 분리
-# X_train, X_test, y_train, y_test = train_test_split(tensor_x, tensor_y, test_size=0.2, random_state=42)
+#     # 입력층과 은닉층 추가
+#     model.add(Dense(32, input_dim=X_train.shape[1], activation='relu', kernel_regularizer=l2(0.01)))  # 은닉층
+#     model.add(Dropout(0.2))
+    
+#     # 출력층 - 4개의 클래스 (Strongly disagree, Somewhat disagree, Somewhat agree, Strongly agree)
+#     model.add(Dense(4, activation='softmax'))  # Softmax로 4개 클래스 분류
 
-# # 텐서플로우 모델 설정
-# model = Sequential([
-#     Dense(32, activation='relu', input_shape=(X_train.shape[1],), kernel_regularizer=l2(0.01)),  # L2 정규화 추가
-#     Dropout(0.3),
-#     Dense(1, activation='linear')  # 분류 문제의 경우 sigmoid, 회귀 문제라면 'linear' 선택 가능
-# ])
+#     # 컴파일 (다중 클래스 분류)
+#     optimizer = Adam(learning_rate = 0.05)
+#     model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+    
+#     # y_train과 y_test를 원-핫 인코딩
+#     y_train_encoded = to_categorical(y_train, num_classes=4)
+#     y_test_encoded = to_categorical(y_test, num_classes=4)
+    
+#     # 조기 종료 설정 (성능이 개선되지 않으면 학습 중단)
+#     early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
 
-# optimizer = Adam(learning_rate=0.01)
+#     # 모델 학습
+#     history = model.fit(X_train, y_train_encoded,
+#               epochs = 20,
+#               batch_size = 32,
+#               verbose = 0,
+#               validation_data=(X_test, y_test_encoded),
+#               callbacks=[early_stopping])
+    
+#     # 평가
+#     loss, accuracy = model.evaluate(X_test, y_test_encoded)
+#     print(f'Test Accuracy: {accuracy}')
 
-# model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+#     # # 과적합 여부 확인 (훈련/검증 손실 시각화)
+#     # import matplotlib.pyplot as plt
 
-# # 조기 종료 설정 (성능이 개선되지 않으면 학습 중단)
-# early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+#     plt.plot(history.history['loss'], label='Training Loss')
+#     plt.plot(history.history['val_loss'], label='Validation Loss')
+#     plt.title(f"Overfitting Test, Model {i}")
+#     plt.xlabel('Epochs')
+#     plt.ylabel('Loss')
+#     plt.legend()
+#     # plt.show()
+#     plt.savefig(f"Overfitting_Test_Model_{i}.png", dpi=300, bbox_inches="tight")
+#     plt.close()
+    
 
-# # 모델 학습
-# history = model.fit(X_train, y_train, validation_split=0.2, epochs=100, batch_size=16, verbose = 0 , callbacks=[early_stopping])
+# from sklearn.model_selection import GridSearchCV
+# from tensorflow.keras.wrappers.scikit_learn import KerasClassifier
+# from tensorflow.keras.models import Sequential
+# from tensorflow.keras.layers import Dense
+# from tensorflow.keras.optimizers import Adam
+# from tensorflow.keras.callbacks import EarlyStopping
+# from tensorflow.keras.utils import to_categorical
 
-# # 평가
-# loss, accuracy = model.evaluate(X_test, y_test)
-# print(f'Test Accuracy: {accuracy}')
+# # 모델 설정 (다중 클래스 분류 모델)
+# def create_model(learning_rate=0.001, dropout_rate=0.3):
+#     model = Sequential()
 
-# # 과적합 여부 확인 (훈련/검증 손실 시각화)
-# import matplotlib.pyplot as plt
+#     # 입력층과 은닉층 추가
+#     model.add(Dense(64, input_dim=X_train.shape[1], activation='relu'))  # 은닉층
+#     model.add(Dropout(dropout_rate))  # Dropout 추가
+#     model.add(Dense(32, activation='relu'))  # 두 번째 은닉층
+#     model.add(Dropout(dropout_rate))  # Dropout 추가
 
-# plt.plot(history.history['loss'], label='Training Loss')
-# plt.plot(history.history['val_loss'], label='Validation Loss')
-# plt.xlabel('Epochs')
-# plt.ylabel('Loss')
-# plt.legend()
-# plt.show()
+#     # 출력층 - 4개의 클래스 (Strongly disagree, Somewhat disagree, Somewhat agree, Strongly agree)
+#     model.add(Dense(4, activation='softmax'))  # Softmax로 4개 클래스 분류
 
-# # 그림 저장
-# plt.savefig("overfitting_test.png", dpi=300, bbox_inches="tight")
-# plt.close()  # plot 창 닫기
+#     # 컴파일 (다중 클래스 분류)
+#     optimizer = Adam(learning_rate=learning_rate)
+#     model.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
+    
+#     return model
+
+# # KerasClassifier로 모델을 래핑
+# model = KerasClassifier(build_fn=create_model, epochs=50, batch_size=32, verbose=0)
+
+# # 하이퍼파라미터 그리드 정의
+# param_grid = {
+#     'learning_rate': [0.001, 0.005, 0.0001],
+#     'batch_size': [16, 32, 64, 128],
+#     'epochs': [10, 20, 50, 100],
+#     'dropout_rate': [0.1, 0.2, 0.3, 0.4, 0.5],
+# }
+
+# # 그리드 서치 설정
+# grid = GridSearchCV(estimator=model, param_grid=param_grid, cv=3)
+
+# # 모델 학습 및 하이퍼파라미터 튜닝
+# grid_result = grid.fit(X_train, y_train)
+
+# # Best parameters
+# print(f"Best Parameters: {grid_result.best_params_}")
+# print(f"Best Cross-validation Score: {grid_result.best_score_}")
