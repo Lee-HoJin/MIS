@@ -7,7 +7,8 @@
 
 ### Modeling and Results Explained
 https://docs.google.com/document/d/1ocHw1r0OCuX39ELoyhgPSyQwAMLkh3MD4CxrysaVX2E/edit?usp=sharing  
-++ See attatched PDF file here
+  
+++ See attatched PDF file on this repository
 
 
 ---
