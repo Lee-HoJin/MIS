@@ -23,8 +23,9 @@ Explanation on variables are written in Instrument file named "HINTS6-AnnotatedE
 * TensorFlow  
 ---
 ### File Descriptions
-* main.py: main code that executes data preprocessing, regression modeling, and printing the results including some plots
-* logit_model.py: previous version that uses logistic regression models. rejected for my study case
-* finding_combos.py: to find combinations of independent variables which has R-squared score more than point 5 (0.5)
-* response_counts.py: saving results of reponse counts as CSV file
+* **main.py**: main code that executes data preprocessing, regression modeling, and printing the results including some plots
+* **logit_model.py**: previous version that uses logistic regression models. rejected for my study case
+* **finding_combos.py**: to find combinations of independent variables which has R-squared score more than point 5 (0.5)
+* **response_counts.py**: saving results of reponse counts as CSV file
+* **dataset.zip**: R Data file(.rda) for survey results
 ___
