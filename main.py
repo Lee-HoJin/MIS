@@ -58,11 +58,11 @@ data['BirthGender'] = np.where(data['BirthGender'] == 'Female', 1, 0)
 
 data['MaritalStatus'] = data['MaritalStatus'].replace({
     'Single, never been married' : 0,
-    'Separated' : 1,
-    'Widowed': 2,
-    'Divorced' : 3,
-    'Living as married or living with a romantic partner': 4,
-    'Married': 5
+    'Separated' : 0,
+    'Widowed': 0,
+    'Divorced' : 0,
+    'Living as married or living with a romantic partner': 0,
+    'Married': 1
 })
 
 data['Education'] = data['Education'].replace({
@@ -285,16 +285,49 @@ data['AverageSleepNight'] = pd.to_numeric(data['Age'], errors='coerce')
 
 y = 'SocMed_MakeDecisions'  # y는 단일 변수이므로 리스트에서 문자열로 변경
 
-X_model_1 = ['Age',
-             'IncomeRanges',
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
+
+for target in ['Age', 'IncomeFeelings']:
+    # target 컬럼에서 숫자가 아닌 값들로 이루어진 행을 제거
+    data = data[~data[target].apply(lambda x: isinstance(x, str))]
+
+    # 결측치 제거
+    data = data.dropna(subset=[target])
+    
+    # 고유값 출력
+    # print(f"{target} = {data[target].unique()}")
+    
+    try:
+        # 'typecasting' 변수에 대해 int 변환 시도
+        data[target] = data[target].astype(int)
+    except ValueError as e:
+        print(f"Error casting {target}: {e}")
+        # 변환 실패한 변수는 건너뜀
+
+# 데이터 스케일링
+scaler = StandardScaler()
+scaled_data = scaler.fit_transform(data[['Age', 'IncomeFeelings']])
+
+# PCA 적용
+pca = PCA(n_components=1)  # 하나의 주성분만 생성
+data['Age_Income_PC1'] = pca.fit_transform(scaled_data)
+print(pca.components_)
+
+
+X_model_1 = [#'Age',
+             # 'IncomeRanges',
+             #'IncomeFeelings',
              # 'Education',
+             # 'Weight',
+             'Age_Income_PC1',
              'MaritalStatus',
-             'BirthGender',
+             'BirthGender', 
              'SocMed_DiscussHCP',
              'SmokeNow',
              'TimesModerateExercise',
             ]
-X_model_2 = X_model_1 + B12
+X_model_2 = X_model_1 + ['SocMed_SharedPers', 'SocMed_SharedGen', 'SocMed_Interacted', 'SocMed_WatchedVid']
 X_model_3 = X_model_2 + ['MisleadingHealthInfo']
 
 models = [X_model_1, X_model_2, X_model_3]
@@ -322,6 +355,8 @@ for target in ['MisleadingHealthInfo'] + X_model_3 + [y]:  # y를 리스트로 �
 
 ########################### Regression Part 회귀 분석 파트
 
+print(data['Age_Income_PC1'].value_counts())
+
 # 성능 결과를 저장할 딕셔너리
 model_performance = {
     'Model': [],
@@ -331,10 +366,21 @@ model_performance = {
     'Random Forest Accuracy': [],
 }
 
+# 저장할 폴더 및 파일 경로 지정 (변경 가능)
+correlation_csv_path = "correlation_matrix_model_{i}.csv"
+vif_csv_path = "vif_model_{i}.csv"
+
 # 각 모델에 대해 반복문 실행 후 성능 기록
 for i, X in enumerate(models, 1):
     # y 변수는 1D 배열로 변환
     X_train, X_test, y_train, y_test = train_test_split(data[X], data[y], test_size=0.2, random_state=42)
+    
+    # 상관행렬 계산
+    correlation_matrix = data[X].corr()
+    # 상관행렬 CSV 저장
+    correlation_matrix.to_csv(correlation_csv_path.format(i=i), index=True)
+    print(f"Correlation matrix for Model {i} saved to {correlation_csv_path.format(i=i)}")
+    
     
     # VIF 계산
     vif_data = pd.DataFrame()
@@ -378,17 +424,17 @@ for i, X in enumerate(models, 1):
     # F1-score 계산
     f1 = f1_score(y_test, y_pred_rf, average='micro')
     
-    # # 교차 검증
-    # cv_scores = cross_val_score(rf_model, X_train, y_train, cv=5)
+    # 교차 검증
+    cv_scores = cross_val_score(rf_model, X_train, y_train, cv=5)
     
-    # # 각 폴드에서의 성능 점수 출력
-    # print("Cross-validation scores:", cv_scores)
+    # 각 폴드에서의 성능 점수 출력
+    print("Cross-validation scores:", cv_scores)
 
-    # # 평균 성능 출력
-    # print("Mean CV score:", np.mean(cv_scores))
+    # 평균 성능 출력
+    print("Mean CV score:", np.mean(cv_scores))
 
-    # # 표준편차 출력
-    # print("Standard deviation of CV scores:", np.std(cv_scores))
+    # 표준편차 출력
+    print("Standard deviation of CV scores:", np.std(cv_scores))
 
     # 성능 기록
     model_performance['Model'].append(f'Model {i}')
@@ -402,7 +448,7 @@ for i, X in enumerate(models, 1):
 performance_df = pd.DataFrame(model_performance)
 print(performance_df)
 
-# ## 잔차 히스토그램
+# # 잔차 히스토그램
 # residuals = y_test - y_pred
 # plt.figure(figsize=(10, 6))
 # sns.histplot(residuals, kde=True, bins=30, color="blue")
@@ -410,7 +456,7 @@ print(performance_df)
 # plt.xlabel("Residuals")
 # plt.ylabel("Frequency")
 # plt.grid()
-# plt.show()
+# # plt.show()
 
 # # 그림 저장
 # plt.savefig("residuals_histogram.png", dpi=300, bbox_inches="tight")
@@ -424,57 +470,65 @@ print(performance_df)
 # plt.xlabel("Actual Values")
 # plt.ylabel("Predicted Values")
 # plt.grid()
+# # plt.show()
+
+# # 그림 저장
+# plt.savefig("actual_predicted.png", dpi=300, bbox_inches="tight")
+# plt.close()  # plot 창 닫기
+
+# from sklearn.metrics import mean_squared_error
+# import tensorflow as tf
+# from tensorflow.keras.models import Sequential
+# from tensorflow.keras.layers import Dense, Dropout
+# from tensorflow.keras.callbacks import EarlyStopping
+# from tensorflow.keras.optimizers import Adam
+# from sklearn.preprocessing import StandardScaler
+
+# ##### 텐서 플로우 활용
+# tensor_y = data[y]
+
+# # 데이터 스케일링
+# from tensorflow.keras.regularizers import l2
+# # from sklearn.preprocessing import MinMaxScaler
+
+# scaler = StandardScaler()    
+# # scaler = MinMaxScaler()
+# tensor_x = scaler.fit_transform(data[X_model_3].values)
+
+# # 훈련 및 테스트 데이터 분리
+# X_train, X_test, y_train, y_test = train_test_split(tensor_x, tensor_y, test_size=0.2, random_state=42)
+
+# # 텐서플로우 모델 설정
+# model = Sequential([
+#     Dense(32, activation='relu', input_shape=(X_train.shape[1],), kernel_regularizer=l2(0.01)),  # L2 정규화 추가
+#     Dropout(0.3),
+#     Dense(1, activation='linear')  # 분류 문제의 경우 sigmoid, 회귀 문제라면 'linear' 선택 가능
+# ])
+
+# optimizer = Adam(learning_rate=0.01)
+
+# model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+
+# # 조기 종료 설정 (성능이 개선되지 않으면 학습 중단)
+# early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+
+# # 모델 학습
+# history = model.fit(X_train, y_train, validation_split=0.2, epochs=100, batch_size=16, verbose = 0 , callbacks=[early_stopping])
+
+# # 평가
+# loss, accuracy = model.evaluate(X_test, y_test)
+# print(f'Test Accuracy: {accuracy}')
+
+# # 과적합 여부 확인 (훈련/검증 손실 시각화)
+# import matplotlib.pyplot as plt
+
+# plt.plot(history.history['loss'], label='Training Loss')
+# plt.plot(history.history['val_loss'], label='Validation Loss')
+# plt.xlabel('Epochs')
+# plt.ylabel('Loss')
+# plt.legend()
 # plt.show()
 
-from sklearn.metrics import mean_squared_error
-import tensorflow as tf
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Dropout
-from tensorflow.keras.callbacks import EarlyStopping
-from tensorflow.keras.optimizers import Adam
-from sklearn.preprocessing import StandardScaler
-
-##### 텐서 플로우 활용
-tensor_y = data[y]
-
-# 데이터 스케일링
-from tensorflow.keras.regularizers import l2
-# from sklearn.preprocessing import MinMaxScaler
-
-scaler = StandardScaler()    
-# scaler = MinMaxScaler()
-tensor_x = scaler.fit_transform(data[X_model_3].values)
-
-# 훈련 및 테스트 데이터 분리
-X_train, X_test, y_train, y_test = train_test_split(tensor_x, tensor_y, test_size=0.2, random_state=42)
-
-# 텐서플로우 모델 설정
-model = Sequential([
-    Dense(32, activation='relu', input_shape=(X_train.shape[1],), kernel_regularizer=l2(0.01)),  # L2 정규화 추가
-    Dropout(0.3),
-    Dense(1, activation='linear')  # 분류 문제의 경우 sigmoid, 회귀 문제라면 'linear' 선택 가능
-])
-
-optimizer = Adam(learning_rate=0.01)
-
-model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
-
-# 조기 종료 설정 (성능이 개선되지 않으면 학습 중단)
-early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
-
-# 모델 학습
-history = model.fit(X_train, y_train, validation_split=0.2, epochs=100, batch_size=16, verbose = 0 , callbacks=[early_stopping])
-
-# 평가
-loss, accuracy = model.evaluate(X_test, y_test)
-print(f'Test Accuracy: {accuracy}')
-
-# 과적합 여부 확인 (훈련/검증 손실 시각화)
-import matplotlib.pyplot as plt
-
-plt.plot(history.history['loss'], label='Training Loss')
-plt.plot(history.history['val_loss'], label='Validation Loss')
-plt.xlabel('Epochs')
-plt.ylabel('Loss')
-plt.legend()
-plt.show()
+# # 그림 저장
+# plt.savefig("overfitting_test.png", dpi=300, bbox_inches="tight")
+# plt.close()  # plot 창 닫기
