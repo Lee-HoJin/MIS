@@ -2,7 +2,7 @@ import pandas as pd
 from scipy.stats import f_oneway
 import numpy as np
 import statsmodels.api as sm
-from statsmodels.stats.outliers_influence import variance_inflation_factor
+from statsmodels.miscmodels.ordinal_model import OrderedModel
 import matplotlib.pyplot as plt
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
@@ -11,6 +11,18 @@ from sklearn.metrics import precision_score, recall_score, f1_score
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error, make_scorer
 from sklearn.model_selection import cross_val_score
+from sklearn.decomposition import PCA
+from sklearn.metrics import mean_squared_error
+
+import tensorflow as tf
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Dropout
+from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow.keras.optimizers import Adam
+from sklearn.preprocessing import StandardScaler
+from keras.utils import to_categorical
+from tensorflow.keras.regularizers import l2
+
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
 
@@ -21,33 +33,34 @@ os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 # 데이터 불러오기 Data Loading
 data = pd.read_csv("./dataset.csv", sep=",", low_memory=False)
 
-# 데이터 가공 Processing data
-
+# 사용하는 모든 변수들
 variables = ['MisleadingHealthInfo',
+             'Age',
              'BirthGender',
              'MaritalStatus',
-             'Education',             
              'IncomeFeelings',
-             'IncomeRanges',
-             'WorkFullTime',
-             'NoticeCalorieInfoOnMenu',
-             'WearableDevTrackHealth',
-             'EthnicGroupBelonging',
-             'ConfidentInternetHealth',
-             'ConfidentMedForms',
-             'GeneralHealth',
-             'OwnAbilityTakeCareHealth',
-             'SocMed_MakeDecisions', 'SocMed_DiscussHCP', 'SocMed_TrueFalse', 'SocMed_SameViews',
-             'SocMed_Visited', 'SocMed_SharedPers', 'SocMed_SharedGen', 'SocMed_Interacted', 'SocMed_WatchedVid']
+             'SmokeNow',
+             'TimesModerateExercise',
+             'SocMed_MakeDecisions',
+             'SocMed_DiscussHCP',
+             'SocMed_SharedPers',
+             'SocMed_SharedGen',
+             'SocMed_Interacted',
+             'SocMed_WatchedVid']
 
 
-################# 수치화 Convering to Numeric Value
+###################################################
+####### 수치화 Converting to Numeric Values #######
+###################################################
+
 data['MisleadingHealthInfo'] = data['MisleadingHealthInfo'].replace({
     'I do not use social media': -1,
     'A little': 0,
     'Some': 1,
     'A lot': 2
 })
+
+data['Age'] = pd.to_numeric(data['Age'], errors='coerce')
 
 ## 여성이 1, 남성이 0 (여성 응답자가 더 많음)
 data['BirthGender'] = np.where(data['BirthGender'] == 'Female', 1, 0)
@@ -61,16 +74,6 @@ data['MaritalStatus'] = data['MaritalStatus'].replace({
     'Married': 1
 })
 
-data['Education'] = data['Education'].replace({
-    'Less than 8 years' : 0,
-    '8 through 11 years' : 1,
-    '12 years or completed high school': 2,
-    'Post high school training other than college (vocational or ' : 3,
-    'Some college': 4,
-    'College graduate': 5,    
-    'Postgraduate': 6
-})
-
 data['IncomeFeelings'] = data['IncomeFeelings'].replace({
     'Living comfortably on present income' : 3,
     'Getting by on present income' : 2,
@@ -78,45 +81,25 @@ data['IncomeFeelings'] = data['IncomeFeelings'].replace({
     'Finding it very difficult on present income' : 0,
 })
 
-data['IncomeRanges'] = data['IncomeRanges'].replace({
-    '$200,000 or more' : 8,
-    '$100,000 to $199,999' : 7,
-    '$75,000 to $99,999': 6,
-    '$50,000 to $74,999' : 5,
-    '$35,000 to $49,999' : 4,
-    '$20,000 to $34,999' : 3,
-    '$15,000 to $19,999' : 2,
-    '$10,000 to $14,999' : 1,
-    '$0 to $9,999' : 0
+
+# N5
+data['SmokeNow'] = data['SmokeNow'].replace({
+    'Not at all' : 0,
+    'Some days' : 1,
+    'Every day' : 2
 })
 
-
-yes_no_questions = ['WorkFullTime',
-                    'NoticeCalorieInfoOnMenu',
-                    'WearableDevTrackHealth'
-                    ]
-
-for target in yes_no_questions:
-    data[target] = data[target].replace({
-        'No' : 0,
-        'Yes' : 1
-    })   
-
-data['EthnicGroupBelonging'] = data['EthnicGroupBelonging'].replace({
-    'Strongly disagree' : 0,
-    'Disagree' : 1,
-    'Neither agree nor disagree': 2,
-    'Agree' : 3,
-    'Strongly agree' : 4
-})
-
-data['ConfidentInternetHealth'] = data['ConfidentInternetHealth'].replace({
-    'Not confident at all' : 0,
-    'A little confident' : 1,
-    'Somewhat confident': 2,
-    'Very confident' : 3,
-    'Completely confident' : 4
-})
+# M1
+data['TimesModerateExercise'] = data['TimesModerateExercise'].replace({
+        'None' : 0,
+        '1 day per week' : 1,
+        '2 days per week' : 2,
+        '3 days per week' : 3,
+        '4 days per week' : 4,
+        '5 days per week' : 5,
+        '6 days per week' : 6,
+        '7 days per week' : 7,
+    })
 
 B14 = ['SocMed_MakeDecisions', 'SocMed_DiscussHCP', 'SocMed_TrueFalse', 'SocMed_SameViews']
 for target in B14 :
@@ -138,151 +121,12 @@ for target in B12 :
         'At least once a week' : 3,
         'Almost every day' : 4
     })
-    
-# C1
-data['FreqGoProvider'] = data['FreqGoProvider'].replace({
-    'None' : 0,    
-    '1 time': 1,
-    '2 times': 2,
-    '3 times': 3,
-    '4 times': 3,
-    '5-9 times': 4,
-    '10 or more times': 5,    
-})
 
-C3 = ['ChanceAskQuestions', 'FeelingsAddressed', 'InvolvedDecisions', 'UnderstoodNextSteps', 'ExplainedClearly', 'SpentEnoughTime', 'HelpUncertainty']
-for target in C3 :
-    data[target] = data[target].replace({
-        'Never' : 0,
-        'Sometimes' : 1,
-        'Usually' : 2,
-        'Always' : 3,
-    })
+###################################################
+########### 데이터 전처리 Preprocessing ###########
+###################################################
 
-# C6
-data['HealthInsurance2'] = data['HealthInsurance2'].replace({
-    'No' : 0,
-    'Yes': 1
-})
-
-# C7 
-data['ConfidentMedForms'] = data['ConfidentMedForms'].replace({
-    'Not at all' : 0,
-    'A little' : 1,
-    'Somewhat': 2,
-    'Very' : 3,
-})
-
-# C8
-data['TrustHCSystem'] = data['TrustHCSystem'].replace({
-    'Not at all' : 0,
-    'A little' : 1,
-    'Somewhat': 2,
-    'Very' : 3,
-})
-
-# H1
-data['GeneralHealth'] = data['GeneralHealth'].replace({
-    'Poor' : 0,
-    'Fair' : 1,
-    'Good': 2,
-    'Very good' : 3,
-    'Excellent' : 4
-})
-
-# E2
-data['HCPEncourageOnlineRec2'] = data['HCPEncourageOnlineRec2'].replace({
-    'No' : 0,
-    'Yes': 1
-})
-
-# H2
-data['OwnAbilityTakeCareHealth'] = data['OwnAbilityTakeCareHealth'].replace({
-    'Not confident at all' : 0,
-    'A little confident' : 1,
-    'Somewhat confident': 2,
-    'Very confident' : 3,
-    'Completely confident' : 4
-})
-
-# H3
-data['UndMedicalStats'] = data['UndMedicalStats'].replace({
-    'Very hard' : 0,
-    'Hard' : 1,
-    'Easy': 2,
-    'Very easy' : 3
-})
-
-# H5
-data['TalkHealthFriends'] = data['TalkHealthFriends'].replace({
-    'No' : 0,
-    'Yes' : 1
-})
-
-H6 = ['MedConditions_Diabetes', 'MedConditions_HighBP', 'MedConditions_HeartCondition', 'MedConditions_LungDisease', 'MedConditions_Depression']
-for target in H6 :
-    data[target] = data[target].replace({
-        'No' : 0,
-        'Yes' : 1,
-    })
-    
-K2 = ['HCPShare_FoodIssues', 'HCPShare_TranspIssues', 'HCPShare_HousingIssues']
-for target in K2 :
-    data[target] = data[target].replace({
-        'Very uncomfortable' : 0,
-        'Somewhat uncomfortable' : 1,
-        'Somewhat comfortable' : 2,
-        'Very comfortable' : 3,
-    })
-
-# N4  
-data['Smoke100'] = data['Smoke100'].replace({
-    'No' : 0,
-    'Yes' : 1
-})
-
-# N5
-data['SmokeNow'] = data['SmokeNow'].replace({
-    'Not at all' : 0,
-    'Some days' : 1,
-    'Every day' : 2
-})
-    
-# M1
-data['TimesModerateExercise'] = data['TimesModerateExercise'].replace({
-        'None' : 0,
-        '1 day per week' : 1,
-        '2 days per week' : 2,
-        '3 days per week' : 3,
-        '4 days per week' : 4,
-        '5 days per week' : 5,
-        '6 days per week' : 6,
-        '7 days per week' : 7,
-    })
-
-# M3
-data['TimesStrengthTraining'] = data['TimesStrengthTraining'].replace({
-        'None' : 0,
-        '1 day per week' : 1,
-        '2 days per week' : 2,
-        '3 days per week' : 3,
-        '4 days per week' : 4,
-        '5 days per week' : 5,
-        '6 days per week' : 6,
-        '7 days per week' : 7,
-    })
-
-data['Age'] = pd.to_numeric(data['Age'], errors='coerce')
-data['Weight'] = pd.to_numeric(data['Age'], errors='coerce')
-data['AverageSleepNight'] = pd.to_numeric(data['Age'], errors='coerce')
-
-############################    변수 입력
-############################ VVVVVVVVVVVVVVVV
-
-y = 'SocMed_MakeDecisions'  # y는 단일 변수이므로 리스트에서 문자열로 변경
-
-from sklearn.decomposition import PCA
-from sklearn.preprocessing import StandardScaler
+y = 'SocMed_MakeDecisions' 
 
 for target in ['Age', 'IncomeFeelings']:
     # target 컬럼에서 숫자가 아닌 값들로 이루어진 행을 제거
@@ -290,9 +134,6 @@ for target in ['Age', 'IncomeFeelings']:
 
     # 결측치 제거
     data = data.dropna(subset=[target])
-    
-    # 고유값 출력
-    # print(f"{target} = {data[target].unique()}")
     
     try:
         # 'typecasting' 변수에 대해 int 변환 시도
@@ -310,7 +151,6 @@ pca = PCA(n_components=1)  # 하나의 주성분만 생성
 data['Age_Income_PC1'] = pca.fit_transform(scaled_data)
 # print(pca.components_)
 
-
 X_model_1 = ['Age_Income_PC1',
              'MaritalStatus',
              'BirthGender', 
@@ -326,15 +166,12 @@ models = [X_model_1, X_model_2, X_model_3]
 # 'Social Media' 사용자들의 응답만 남기기 위함
 data['MisleadingHealthInfo'] = data['MisleadingHealthInfo'].replace(-1, np.nan)
 
-for target in ['MisleadingHealthInfo'] + X_model_3 + [y]:  # y를 리스트로 감싸지 않고 단일 변수로 처리
+for target in ['MisleadingHealthInfo'] + X_model_3 + [y]:
     # target 컬럼에서 숫자가 아닌 값들로 이루어진 행을 제거
     data = data[~data[target].apply(lambda x: isinstance(x, str))]
 
     # 결측치 제거
     data = data.dropna(subset=[target])
-    
-    # 고유값 출력
-    # print(f"{target} = {data[target].unique()}")
     
     try:
         # 'typecasting' 변수에 대해 int 변환 시도
@@ -344,41 +181,24 @@ for target in ['MisleadingHealthInfo'] + X_model_3 + [y]:  # y를 리스트로 �
         # 변환 실패한 변수는 건너뜀
 
 
-########################### Regression Part 회귀 분석 파트
-
-# print(data['Age_Income_PC1'].value_counts())
+###################################################
+########## 회귀 분석 파트 Regression Part ##########
+###################################################
 
 # 성능 결과를 저장할 딕셔너리
 model_performance = {
     'Model': [],
     'R-squared': [],
     'MSE': [],
-    'F1-score': [],
-    'Random Forest Accuracy': [],
+    'CV std': [],
+    'Pseudo R-squared': [],
+    'TensorFlow': []
 }
-
-# # 저장할 폴더 및 파일 경로 지정 (변경 가능)
-# correlation_csv_path = "correlation_matrix_model_{i}.csv"
-# vif_csv_path = "vif_model_{i}.csv"
 
 # 각 모델에 대해 반복문 실행 후 성능 기록
 for i, X in enumerate(models, 1):
     # y 변수는 1D 배열로 변환
     X_train, X_test, y_train, y_test = train_test_split(data[X], data[y], test_size=0.2, random_state=42)
-    
-    # # 상관행렬 계산
-    # correlation_matrix = data[X].corr()
-    # # 상관행렬 CSV 저장
-    # correlation_matrix.to_csv(correlation_csv_path.format(i=i), index=True)
-    # print(f"Correlation matrix for Model {i} saved to {correlation_csv_path.format(i=i)}")
-    
-    
-    # # VIF 계산
-    # vif_data = pd.DataFrame()
-    # vif_data["Variable"] = X_train.columns
-    # vif_data["VIF"] = [variance_inflation_factor(X_train.values, i) for i in range(X_train.shape[1])]
-    # print("Variance Inflation Factor:")
-    # print(vif_data)
 
     # 선형 회귀 모델 생성 및 학습
     linear_model = LinearRegression()
@@ -395,191 +215,76 @@ for i, X in enumerate(models, 1):
     mse_scorer = make_scorer(mean_squared_error, greater_is_better=False)
     cv_scores = cross_val_score(linear_model, X_train, y_train, cv=5, scoring=mse_scorer)
 
-    # 교차 검증 결과 출력
-    print("Cross-validation scores (MSE):", cv_scores)
-    print("Mean CV score (MSE):", np.mean(cv_scores))
-    print("Standard deviation of CV scores (MSE):", np.std(cv_scores))
-
-    
-    # 학습 데이터에 상수항 추가 (절편)
-    X_train_const = sm.add_constant(X_train)
-    
-    
-    # 선형 회귀 모델 생성 및 학습
-    model = sm.OLS(y_train, X_train_const).fit()
-
-    # 모델 요약 결과 출력
-    print(model.summary())
-  
-    # 랜덤 포레스트 모델 훈련
-    rf_model = RandomForestClassifier(
-        n_estimators=200,
-        class_weight='balanced',
-        max_depth=10,
-        min_samples_split=4,
-        min_samples_leaf=2,
-        random_state=42
+    # 순서형 로지스틱 회귀 Ordered Logistic Regression
+    order_logit_model = OrderedModel(
+        data[y].astype(int),
+        data[X],
+        distr='logit'
     )
+    order_logit_result = order_logit_model.fit(method='bfgs')
+    # print(order_logit_result.summary())
+
+    # 로지스틱 회귀 모델의 로그 우도 값
+    log_likelihood_model = order_logit_result.llf  # 모델의 로그 우도 값
+
+    # 비교 모델 (보통 상수만 있는 모델)의 로그 우도 값
+    log_likelihood_null = order_logit_result.llnull  # 상수만 포함된 모델의 로그 우도 값
+
+    # McFadden's R-squared 계산
+    pseudo_r_squared = 1 - (log_likelihood_model / log_likelihood_null)
+
+    print(f"McFadden's Pseudo R-squared: {pseudo_r_squared:.4f}")
+
+    #### 텐서 플로우 활용
+    tensor_y = data[y]
+
+    # 데이터 스케일링
+    scaler = StandardScaler()  
+    tensor_x = scaler.fit_transform(data[X].values)    
+    
+    X_train, X_test, y_train, y_test = train_test_split(tensor_x, tensor_y, test_size=0.2, random_state=42)
+        
+    # 모델 설정 (다중 클래스 분류 모델)
+    model = Sequential()
+
+    # 입력층과 은닉층 추가
+    model.add(Dense(32, input_dim=X_train.shape[1], activation='relu', kernel_regularizer=l2(0.01)))  # 은닉층
+    model.add(Dropout(0.2))
+    
+    # 출력층 - 4개의 클래스 (Strongly disagree, Somewhat disagree, Somewhat agree, Strongly agree)
+    model.add(Dense(4, activation='softmax'))  # Softmax로 4개 클래스 분류
+
+    # 컴파일 (다중 클래스 분류)
+    optimizer = Adam(learning_rate = 0.05)
+    model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+    
+    # y_train과 y_test를 원-핫 인코딩
+    y_train_encoded = to_categorical(y_train, num_classes=4)
+    y_test_encoded = to_categorical(y_test, num_classes=4)
+    
+    # 조기 종료 설정 (성능이 개선되지 않으면 학습 중단)
+    early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
 
     # 모델 학습
-    rf_model.fit(X_train, y_train)
-
-    # 예측
-    y_pred_rf = rf_model.predict(X_test)
-
-    # 정확도 평가
-    accuracy = accuracy_score(y_test, y_pred_rf)
-
-    # F1-score 계산
-    f1 = f1_score(y_test, y_pred_rf, average='micro')
+    history = model.fit(X_train, y_train_encoded,
+              epochs = 20,
+              batch_size = 32,
+              verbose = 0,
+              validation_data=(X_test, y_test_encoded),
+              callbacks=[early_stopping])
     
-    # # # 교차 검증
-    # cv_scores = cross_val_score(linear_model, X_train, y_train, cv=5)
+    # 평가
+    loss, accuracy = model.evaluate(X_test, y_test_encoded)
+    print(f'Test Accuracy: {accuracy}')
     
-    # # # 각 폴드에서의 성능 점수 출력
-    # print("Cross-validation scores:", cv_scores)
-
-    # # # 평균 성능 출력
-    # print("Mean CV score:", np.mean(cv_scores))
-
-    # # # 표준편차 출력
-    # print("Standard deviation of CV scores:", np.std(cv_scores))
-    
-    # # 잔차 히스토그램
-    # residuals = y_test - y_pred_rf
-    # plt.figure(figsize=(10, 6))
-    # sns.histplot(residuals, kde=True, bins=30, color="blue")
-    # plt.title(f"Histogram of Residuals, Model {i}")
-    # plt.xlabel("Residuals")
-    # plt.ylabel("Frequency")
-    # plt.grid()
-    # # plt.show()
-    # plt.savefig(f"residuals_histogram_model_{i}.png", dpi=300, bbox_inches="tight")
-    # plt.close()
-
     # 성능 기록
     model_performance['Model'].append(f'Model {i}')
     model_performance['R-squared'].append(r_squared)
     model_performance['MSE'].append(mse)
-    model_performance['Random Forest Accuracy'].append(accuracy)
-    model_performance['F1-score'].append(f1)
+    model_performance['CV std'].append(np.std(cv_scores))
+    model_performance['Pseudo R-squared'].append(pseudo_r_squared)
+    model_performance['TensorFlow'].append(accuracy)
     
 # 성능 결과 출력
 performance_df = pd.DataFrame(model_performance)
 print(performance_df)
-
-
-# from sklearn.metrics import mean_squared_error
-# import tensorflow as tf
-# from tensorflow.keras.models import Sequential
-# from tensorflow.keras.layers import Dense, Dropout
-# from tensorflow.keras.callbacks import EarlyStopping
-# from tensorflow.keras.optimizers import Adam
-# from sklearn.preprocessing import StandardScaler
-# from keras.utils import to_categorical
-# from tensorflow.keras.regularizers import l2
-    
-# for i, X in enumerate(models, 1):
-#     ##### 텐서 플로우 활용
-#     tensor_y = data[y]
-
-#     # 데이터 스케일링
-#     scaler = StandardScaler()  
-#     tensor_x = scaler.fit_transform(data[X].values)    
-    
-#     X_train, X_test, y_train, y_test = train_test_split(tensor_x, tensor_y, test_size=0.2, random_state=42)
-        
-#     # 모델 설정 (다중 클래스 분류 모델)
-#     model = Sequential()
-
-#     # 입력층과 은닉층 추가
-#     model.add(Dense(32, input_dim=X_train.shape[1], activation='relu', kernel_regularizer=l2(0.01)))  # 은닉층
-#     model.add(Dropout(0.2))
-    
-#     # 출력층 - 4개의 클래스 (Strongly disagree, Somewhat disagree, Somewhat agree, Strongly agree)
-#     model.add(Dense(4, activation='softmax'))  # Softmax로 4개 클래스 분류
-
-#     # 컴파일 (다중 클래스 분류)
-#     optimizer = Adam(learning_rate = 0.05)
-#     model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
-    
-#     # y_train과 y_test를 원-핫 인코딩
-#     y_train_encoded = to_categorical(y_train, num_classes=4)
-#     y_test_encoded = to_categorical(y_test, num_classes=4)
-    
-#     # 조기 종료 설정 (성능이 개선되지 않으면 학습 중단)
-#     early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
-
-#     # 모델 학습
-#     history = model.fit(X_train, y_train_encoded,
-#               epochs = 20,
-#               batch_size = 32,
-#               verbose = 0,
-#               validation_data=(X_test, y_test_encoded),
-#               callbacks=[early_stopping])
-    
-#     # 평가
-#     loss, accuracy = model.evaluate(X_test, y_test_encoded)
-#     print(f'Test Accuracy: {accuracy}')
-
-#     # # 과적합 여부 확인 (훈련/검증 손실 시각화)
-#     # import matplotlib.pyplot as plt
-
-#     plt.plot(history.history['loss'], label='Training Loss')
-#     plt.plot(history.history['val_loss'], label='Validation Loss')
-#     plt.title(f"Overfitting Test, Model {i}")
-#     plt.xlabel('Epochs')
-#     plt.ylabel('Loss')
-#     plt.legend()
-#     # plt.show()
-#     plt.savefig(f"Overfitting_Test_Model_{i}.png", dpi=300, bbox_inches="tight")
-#     plt.close()
-    
-
-# from sklearn.model_selection import GridSearchCV
-# from tensorflow.keras.wrappers.scikit_learn import KerasClassifier
-# from tensorflow.keras.models import Sequential
-# from tensorflow.keras.layers import Dense
-# from tensorflow.keras.optimizers import Adam
-# from tensorflow.keras.callbacks import EarlyStopping
-# from tensorflow.keras.utils import to_categorical
-
-# # 모델 설정 (다중 클래스 분류 모델)
-# def create_model(learning_rate=0.001, dropout_rate=0.3):
-#     model = Sequential()
-
-#     # 입력층과 은닉층 추가
-#     model.add(Dense(64, input_dim=X_train.shape[1], activation='relu'))  # 은닉층
-#     model.add(Dropout(dropout_rate))  # Dropout 추가
-#     model.add(Dense(32, activation='relu'))  # 두 번째 은닉층
-#     model.add(Dropout(dropout_rate))  # Dropout 추가
-
-#     # 출력층 - 4개의 클래스 (Strongly disagree, Somewhat disagree, Somewhat agree, Strongly agree)
-#     model.add(Dense(4, activation='softmax'))  # Softmax로 4개 클래스 분류
-
-#     # 컴파일 (다중 클래스 분류)
-#     optimizer = Adam(learning_rate=learning_rate)
-#     model.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
-    
-#     return model
-
-# # KerasClassifier로 모델을 래핑
-# model = KerasClassifier(build_fn=create_model, epochs=50, batch_size=32, verbose=0)
-
-# # 하이퍼파라미터 그리드 정의
-# param_grid = {
-#     'learning_rate': [0.001, 0.005, 0.0001],
-#     'batch_size': [16, 32, 64, 128],
-#     'epochs': [10, 20, 50, 100],
-#     'dropout_rate': [0.1, 0.2, 0.3, 0.4, 0.5],
-# }
-
-# # 그리드 서치 설정
-# grid = GridSearchCV(estimator=model, param_grid=param_grid, cv=3)
-
-# # 모델 학습 및 하이퍼파라미터 튜닝
-# grid_result = grid.fit(X_train, y_train)
-
-# # Best parameters
-# print(f"Best Parameters: {grid_result.best_params_}")
-# print(f"Best Cross-validation Score: {grid_result.best_score_}")
