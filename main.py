@@ -1,13 +1,11 @@
 import pandas as pd
-from scipy.stats import f_oneway
 import numpy as np
 import statsmodels.api as sm
 from statsmodels.miscmodels.ordinal_model import OrderedModel
+from statsmodels.stats.outliers_influence import variance_inflation_factor
 import matplotlib.pyplot as plt
-from sklearn.ensemble import RandomForestClassifier
+import seaborn as sns
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score
-from sklearn.metrics import precision_score, recall_score, f1_score
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error, make_scorer
 from sklearn.model_selection import cross_val_score
@@ -36,16 +34,15 @@ data = pd.read_csv("./dataset.csv", sep=",", low_memory=False)
 # 사용하는 모든 변수들
 variables = ['MisleadingHealthInfo',
              'Age',
+             'IncomeFeelings',
              'BirthGender',
              'MaritalStatus',
-             'IncomeFeelings',
-             'SmokeNow',
-             'TimesModerateExercise',
              'SocMed_MakeDecisions',
              'SocMed_DiscussHCP',
+             'SocMed_TrueFalse',
+             'SocMed_SameViews',
              'SocMed_SharedPers',
              'SocMed_SharedGen',
-             'SocMed_Interacted',
              'SocMed_WatchedVid']
 
 
@@ -61,6 +58,7 @@ data['MisleadingHealthInfo'] = data['MisleadingHealthInfo'].replace({
 })
 
 data['Age'] = pd.to_numeric(data['Age'], errors='coerce')
+
 
 ## 여성이 1, 남성이 0 (여성 응답자가 더 많음)
 data['BirthGender'] = np.where(data['BirthGender'] == 'Female', 1, 0)
@@ -80,26 +78,6 @@ data['IncomeFeelings'] = data['IncomeFeelings'].replace({
     'Finding it difficult on present income': 1,
     'Finding it very difficult on present income' : 0,
 })
-
-
-# N5
-data['SmokeNow'] = data['SmokeNow'].replace({
-    'Not at all' : 0,
-    'Some days' : 1,
-    'Every day' : 2
-})
-
-# M1
-data['TimesModerateExercise'] = data['TimesModerateExercise'].replace({
-        'None' : 0,
-        '1 day per week' : 1,
-        '2 days per week' : 2,
-        '3 days per week' : 3,
-        '4 days per week' : 4,
-        '5 days per week' : 5,
-        '6 days per week' : 6,
-        '7 days per week' : 7,
-    })
 
 B14 = ['SocMed_MakeDecisions', 'SocMed_DiscussHCP', 'SocMed_TrueFalse', 'SocMed_SameViews']
 for target in B14 :
@@ -142,6 +120,7 @@ for target in ['Age', 'IncomeFeelings']:
         print(f"Error casting {target}: {e}")
         # 변환 실패한 변수는 건너뜀
 
+
 # 데이터 스케일링
 scaler = StandardScaler()
 scaled_data = scaler.fit_transform(data[['Age', 'IncomeFeelings']])
@@ -152,13 +131,14 @@ data['Age_Income_PC1'] = pca.fit_transform(scaled_data)
 # print(pca.components_)
 
 X_model_1 = ['Age_Income_PC1',
+             'BirthGender',
              'MaritalStatus',
-             'BirthGender', 
              'SocMed_DiscussHCP',
-             'SmokeNow',
-             'TimesModerateExercise',
+             'SocMed_TrueFalse',
+             'SocMed_SameViews'
             ]
-X_model_2 = X_model_1 + ['SocMed_SharedPers', 'SocMed_SharedGen', 'SocMed_Interacted', 'SocMed_WatchedVid']
+
+X_model_2 = X_model_1 + ['SocMed_SharedPers', 'SocMed_SharedGen', 'SocMed_WatchedVid']
 X_model_3 = X_model_2 + ['MisleadingHealthInfo']
 
 models = [X_model_1, X_model_2, X_model_3]
@@ -180,7 +160,6 @@ for target in ['MisleadingHealthInfo'] + X_model_3 + [y]:
         print(f"Error casting {target}: {e}")
         # 변환 실패한 변수는 건너뜀
 
-
 ###################################################
 ########## 회귀 분석 파트 Regression Part ##########
 ###################################################
@@ -195,10 +174,27 @@ model_performance = {
     'TensorFlow': []
 }
 
+
+
 # 각 모델에 대해 반복문 실행 후 성능 기록
 for i, X in enumerate(models, 1):
     # y 변수는 1D 배열로 변환
     X_train, X_test, y_train, y_test = train_test_split(data[X], data[y], test_size=0.2, random_state=42)
+    
+    # # VIF 계산
+    # vif_data = pd.DataFrame()
+    # vif_data["Variable"] = X_train.columns
+    # vif_data["VIF"] = [variance_inflation_factor(X_train.values, i) for i in range(X_train.shape[1])]
+    # print("Variance Inflation Factor:")
+    # print(vif_data)
+    
+    
+    # correlation_csv_path = "correlation_matrix_model_{i}.csv"
+    # # 상관행렬 계산
+    # correlation_matrix = data[X].corr()
+    # # 상관행렬 CSV 저장
+    # correlation_matrix.to_csv(correlation_csv_path.format(i=i), index=True)
+    # print(f"Correlation matrix for Model {i} saved to {correlation_csv_path.format(i=i)}")
 
     # 선형 회귀 모델 생성 및 학습
     linear_model = LinearRegression()
@@ -210,10 +206,31 @@ for i, X in enumerate(models, 1):
     # 평가
     mse = mean_squared_error(y_test, y_pred)
     r_squared = linear_model.score(X_test, y_test)
+    
+    # # 잔차 히스토그램
+    # residuals = y_test - y_pred
+    # plt.figure(figsize=(10, 6))
+    # sns.histplot(residuals, kde=True, bins=30, color="blue")
+    # plt.title(f"Histogram of Residuals, Model {i}")
+    # plt.xlabel("Residuals")
+    # plt.ylabel("Frequency")
+    # plt.grid()
+    # # plt.show()
+    # plt.savefig(f"residuals_histogram_model_{i}.png", dpi=300, bbox_inches="tight")
+    # plt.close()
 
     # 교차 검증 점수 계산 (평가 지표는 Mean Squared Error)
     mse_scorer = make_scorer(mean_squared_error, greater_is_better=False)
     cv_scores = cross_val_score(linear_model, X_train, y_train, cv=5, scoring=mse_scorer)
+    
+    # # 학습 데이터에 상수항 추가 (절편)
+    # X_train_const = sm.add_constant(X_train)    
+    
+    # # 선형 회귀 모델 생성 및 학습
+    # model = sm.OLS(y_train, X_train_const).fit()
+
+    # # 모델 요약 결과 출력
+    # print(model.summary())
 
     # 순서형 로지스틱 회귀 Ordered Logistic Regression
     order_logit_model = OrderedModel(
@@ -222,7 +239,7 @@ for i, X in enumerate(models, 1):
         distr='logit'
     )
     order_logit_result = order_logit_model.fit(method='bfgs')
-    # print(order_logit_result.summary())
+    print(order_logit_result.summary())
 
     # 로지스틱 회귀 모델의 로그 우도 값
     log_likelihood_model = order_logit_result.llf  # 모델의 로그 우도 값
@@ -255,7 +272,7 @@ for i, X in enumerate(models, 1):
     model.add(Dense(4, activation='softmax'))  # Softmax로 4개 클래스 분류
 
     # 컴파일 (다중 클래스 분류)
-    optimizer = Adam(learning_rate = 0.05)
+    optimizer = Adam(learning_rate = 0.01)
     model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
     
     # y_train과 y_test를 원-핫 인코딩
@@ -268,7 +285,7 @@ for i, X in enumerate(models, 1):
     # 모델 학습
     history = model.fit(X_train, y_train_encoded,
               epochs = 20,
-              batch_size = 32,
+              batch_size = 128,
               verbose = 0,
               validation_data=(X_test, y_test_encoded),
               callbacks=[early_stopping])
@@ -276,6 +293,17 @@ for i, X in enumerate(models, 1):
     # 평가
     loss, accuracy = model.evaluate(X_test, y_test_encoded)
     print(f'Test Accuracy: {accuracy}')
+    
+    # # 과적합 여부 확인 (훈련/검증 손실 시각화)
+    # plt.plot(history.history['loss'], label='Training Loss')
+    # plt.plot(history.history['val_loss'], label='Validation Loss')
+    # plt.title(f"Overfitting Test, Model {i}")
+    # plt.xlabel('Epochs')
+    # plt.ylabel('Loss')
+    # plt.legend()
+    # # plt.show()
+    # plt.savefig(f"Overfitting_Test_Model_{i}.png", dpi=300, bbox_inches="tight")
+    # plt.close()
     
     # 성능 기록
     model_performance['Model'].append(f'Model {i}')
