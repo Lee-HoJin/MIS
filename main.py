@@ -240,6 +240,22 @@ for i, X in enumerate(models, 1):
     )
     order_logit_result = order_logit_model.fit(method='bfgs')
     print(order_logit_result.summary())
+    
+    # 예측된 확률 (각 범주에 대한 확률)
+    y_pred_probs = order_logit_result.predict(X_test)
+
+    # 잔차 계산 (실제 범주와 예측된 확률의 차이)
+    residuals = y_test - np.argmax(y_pred_probs, axis=1)  # 예측된 확률의 최대값을 선택하여 실제 범주와 비교
+
+    # 잔차 히스토그램
+    plt.figure(figsize=(10, 6))
+    sns.histplot(residuals, kde=True, bins=30, color="blue")
+    plt.title(f"Histogram of Residuals, Model {i}")
+    plt.xlabel("Residuals")
+    plt.ylabel("Frequency")
+    plt.grid()
+    plt.savefig(f"residuals_histogram_model_{i}.png", dpi=300, bbox_inches="tight")
+    plt.close()
 
     # 로지스틱 회귀 모델의 로그 우도 값
     log_likelihood_model = order_logit_result.llf  # 모델의 로그 우도 값
