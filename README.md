@@ -19,7 +19,7 @@ Explanation on variables are written in Instrument file named "HINTS6-AnnotatedE
 ---
 ### Model Used  
 * Linear Regression  
-* Random Forest  
+* Ordinal Logistic Regression Model
 * TensorFlow  
 ---
 ### File Descriptions
