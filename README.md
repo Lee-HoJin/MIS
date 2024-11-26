@@ -2,7 +2,7 @@
 # Management Information Systems Case Study  
 
     
-## Regression Modeling on "STILL WORKING"
+## What Leads People to Make Health-Related Decisions on Social Media
 ---  
 
 ### Modeling and Results Explained
