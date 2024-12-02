@@ -27,5 +27,5 @@ Explanation on variables are written in Instrument file named "HINTS6-AnnotatedE
 * **finding_combos.py**: to find combinations of independent variables which has R-squared score more than point 5 (0.5)
 * **response_counts.py**: saving results of reponse counts as CSV file
 * **dataset.zip**: R Data file(.rda) for survey results
-* **Case Study 4 to 8.pdf"**: Research report
+* **Case Study Report.pdf"**: Research report
 ___
