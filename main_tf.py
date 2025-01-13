@@ -1,16 +1,8 @@
 import pandas as pd
 import numpy as np
-import statsmodels.api as sm
-from statsmodels.miscmodels.ordinal_model import OrderedModel
-from statsmodels.stats.outliers_influence import variance_inflation_factor
 import matplotlib.pyplot as plt
-import seaborn as sns
 from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_squared_error, make_scorer
-from sklearn.model_selection import cross_val_score
 from sklearn.decomposition import PCA
-from sklearn.metrics import mean_squared_error
 
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
@@ -18,8 +10,6 @@ from tensorflow.keras.layers import Dense, Dropout
 from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.optimizers import Adam
 from sklearn.preprocessing import StandardScaler
-from keras.utils import to_categorical
-from tensorflow.keras.regularizers import l2
 
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -164,151 +154,50 @@ for target in ['MisleadingHealthInfo'] + X_model_3 + [y]:
 ########## 회귀 분석 파트 Regression Part ##########
 ###################################################
 
-# 성능 결과를 저장할 딕셔너리
-model_performance = {
-    'Model': [],
-    'R-squared': [],
-    'MSE': [],
-    'CV std': [],
-    'Pseudo R-squared': [],
-    'TensorFlow': []
-}
-
-
+results = []
 
 # 각 모델에 대해 반복문 실행 후 성능 기록
 for i, X in enumerate(models, 1):
     # y 변수는 1D 배열로 변환
     X_train, X_test, y_train, y_test = train_test_split(data[X], data[y], test_size=0.2, random_state=42)
-    
-    # # VIF 계산
-    # vif_data = pd.DataFrame()
-    # vif_data["Variable"] = X_train.columns
-    # vif_data["VIF"] = [variance_inflation_factor(X_train.values, i) for i in range(X_train.shape[1])]
-    # print("Variance Inflation Factor:")
-    # print(vif_data)
-    
-    
-    # correlation_csv_path = "correlation_matrix_model_{i}.csv"
-    # # 상관행렬 계산
-    # correlation_matrix = data[X].corr()
-    # # 상관행렬 CSV 저장
-    # correlation_matrix.to_csv(correlation_csv_path.format(i=i), index=True)
-    # print(f"Correlation matrix for Model {i} saved to {correlation_csv_path.format(i=i)}")
 
-    # 선형 회귀 모델 생성 및 학습
-    linear_model = LinearRegression()
-    linear_model.fit(X_train, y_train)
+    model = tf.keras.Sequential([
+        Dense(16, activation='relu', input_shape=(X_train.shape[1],)),
+        Dropout(0.5),
+        Dense(4, activation='relu'),
+        Dropout(0.5),
+        Dense(4, 'softmax')
+    ])
 
-    # 예측
-    y_pred = linear_model.predict(X_test)
+    optimizer = tf.keras.optimizers.Adam(learning_rate = 0.01)
 
-    # 평가
-    mse = mean_squared_error(y_test, y_pred)
-    r_squared = linear_model.score(X_test, y_test)
-    
-    # # 잔차 히스토그램
-    # residuals = y_test - y_pred
-    # plt.figure(figsize=(10, 6))
-    # sns.histplot(residuals, kde=True, bins=30, color="blue")
-    # plt.title(f"Histogram of Residuals, Model {i}")
-    # plt.xlabel("Residuals")
-    # plt.ylabel("Frequency")
-    # plt.grid()
-    # # plt.show()
-    # plt.savefig(f"residuals_histogram_model_{i}.png", dpi=300, bbox_inches="tight")
-    # plt.close()
-
-    # 교차 검증 점수 계산 (평가 지표는 Mean Squared Error)
-    mse_scorer = make_scorer(mean_squared_error, greater_is_better=False)
-    cv_scores = cross_val_score(linear_model, X_train, y_train, cv=5, scoring=mse_scorer)
-    
-    # # 학습 데이터에 상수항 추가 (절편)
-    # X_train_const = sm.add_constant(X_train)    
-    
-    # # 선형 회귀 모델 생성 및 학습
-    # model = sm.OLS(y_train, X_train_const).fit()
-
-    # # 모델 요약 결과 출력
-    # print(model.summary())
-
-    # 순서형 로지스틱 회귀 Ordered Logistic Regression
-    order_logit_model = OrderedModel(
-        data[y].astype(int),
-        data[X],
-        distr='logit'
+    model.compile(
+        loss='sparse_categorical_crossentropy',
+        optimizer = optimizer,
+        metrics = ['accuracy']
     )
-    order_logit_result = order_logit_model.fit(method='bfgs')
-    print(order_logit_result.summary())
-    
-    # 예측된 확률 (각 범주에 대한 확률)
-    y_pred_probs = order_logit_result.predict(X_test)
+    # model.summary()
 
-    # 잔차 계산 (실제 범주와 예측된 확률의 차이)
-    residuals = y_test - np.argmax(y_pred_probs, axis=1)  # 예측된 확률의 최대값을 선택하여 실제 범주와 비교
+    early_stopping = EarlyStopping(
+        monitor = 'val_loss',
+        patience = 10,
+        restore_best_weights=True
+    )
 
-    # 잔차 히스토그램
-    plt.figure(figsize=(10, 6))
-    sns.histplot(residuals, kde=True, bins=30, color="blue")
-    plt.title(f"Histogram of Residuals, Model {i}")
-    plt.xlabel("Residuals")
-    plt.ylabel("Frequency")
-    plt.grid()
-    plt.savefig(f"residuals_histogram_model_{i}.png", dpi=300, bbox_inches="tight")
-    plt.close()
+    history = model.fit(
+        X_train, y_train,
+        batch_size = 32,
+        epochs = 300,
+        shuffle = True,
+        verbose = 0,
+        validation_split = 0.2,
+        callbacks=[early_stopping]
+    )
 
-    # 로지스틱 회귀 모델의 로그 우도 값
-    log_likelihood_model = order_logit_result.llf  # 모델의 로그 우도 값
-
-    # 비교 모델 (보통 상수만 있는 모델)의 로그 우도 값
-    log_likelihood_null = order_logit_result.llnull  # 상수만 포함된 모델의 로그 우도 값
-
-    # McFadden's R-squared 계산
-    pseudo_r_squared = 1 - (log_likelihood_model / log_likelihood_null)
-
-    print(f"McFadden's Pseudo R-squared: {pseudo_r_squared:.4f}")
-
-    #### 텐서 플로우 활용
-    tensor_y = data[y]
-
-    # 데이터 스케일링
-    scaler = StandardScaler()  
-    tensor_x = scaler.fit_transform(data[X].values)    
-    
-    X_train, X_test, y_train, y_test = train_test_split(tensor_x, tensor_y, test_size=0.2, random_state=42)
-        
-    # 모델 설정 (다중 클래스 분류 모델)
-    model = Sequential()
-
-    # 입력층과 은닉층 추가
-    model.add(Dense(32, input_dim=X_train.shape[1], activation='relu', kernel_regularizer=l2(0.01)))  # 은닉층
-    model.add(Dropout(0.2))
-    
-    # 출력층 - 4개의 클래스 (Strongly disagree, Somewhat disagree, Somewhat agree, Strongly agree)
-    model.add(Dense(4, activation='softmax'))  # Softmax로 4개 클래스 분류
-
-    # 컴파일 (다중 클래스 분류)
-    optimizer = Adam(learning_rate = 0.01)
-    model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
-    
-    # y_train과 y_test를 원-핫 인코딩
-    y_train_encoded = to_categorical(y_train, num_classes=4)
-    y_test_encoded = to_categorical(y_test, num_classes=4)
-    
-    # 조기 종료 설정 (성능이 개선되지 않으면 학습 중단)
-    early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
-
-    # 모델 학습
-    history = model.fit(X_train, y_train_encoded,
-              epochs = 20,
-              batch_size = 128,
-              verbose = 0,
-              validation_data=(X_test, y_test_encoded),
-              callbacks=[early_stopping])
-    
-    # 평가
-    loss, accuracy = model.evaluate(X_test, y_test_encoded)
-    print(f'Test Accuracy: {accuracy}')
+    test_loss, test_accuracy = model.evaluate(X_test, y_test, batch_size = 32)
+    print(f"Test Loss: {test_loss}")
+    print(f"Test Accuracy: {test_accuracy}")
+    results.append(f"Model {i} - {test_accuracy}")
     
     # # 과적합 여부 확인 (훈련/검증 손실 시각화)
     # plt.plot(history.history['loss'], label='Training Loss')
@@ -320,15 +209,5 @@ for i, X in enumerate(models, 1):
     # # plt.show()
     # plt.savefig(f"Overfitting_Test_Model_{i}.png", dpi=300, bbox_inches="tight")
     # plt.close()
-    
-    # 성능 기록
-    model_performance['Model'].append(f'Model {i}')
-    model_performance['R-squared'].append(r_squared)
-    model_performance['MSE'].append(mse)
-    model_performance['CV std'].append(np.std(cv_scores))
-    model_performance['Pseudo R-squared'].append(pseudo_r_squared)
-    model_performance['TensorFlow'].append(accuracy)
-    
-# 성능 결과 출력
-performance_df = pd.DataFrame(model_performance)
-print(performance_df)
+
+print(results)
