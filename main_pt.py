@@ -1,14 +1,10 @@
 import pandas as pd
 import numpy as np
-import statsmodels.api as sm
-from statsmodels.stats.outliers_influence import variance_inflation_factor
-import matplotlib.pyplot as plt
-import seaborn as sns
-from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 
 import torch
+torch.cuda.init()  # CUDA 초기화
 from torch import nn
 from torch.utils.data import DataLoader, Dataset, random_split
 from torchvision import datasets, transforms
@@ -173,24 +169,14 @@ device = (
     else "cpu"
 )
 print(f"Using {device} device")
-print(torch.__version__)  # PyTorch 버전 확인
-print(torch.version.cuda)  # PyTorch가 사용하는 CUDA 버전
-print("CUDA 사용 가능 여부:", torch.cuda.is_available())
-print("GPU 디바이스 이름:", torch.cuda.get_device_name(0) if torch.cuda.is_available() else "None")
-print("디바이스 상태:", torch.cuda.current_device())
 
 ###################################################
 ########## 회귀 분석 파트 Regression Part ##########
 ###################################################
 
-
-
-
 # 각 모델에 대해 반복문 실행 후 성능 기록
 for i, X in enumerate(models, 1):
-    # y 변수는 1D 배열로 변환
-    # X_train, X_test, y_train, y_test = train_test_split(data[X], data[y], test_size=0.2, random_state=42)
-    
+
     # 데이터셋 생성
     dataset = CustomDataset(data[X], data[y])
 
@@ -208,13 +194,7 @@ for i, X in enumerate(models, 1):
     for batch in train_loader:
         X_batch, y_batch = batch        
 
-    # # VIF 계산
-    # vif_data = pd.DataFrame()
-    # vif_data["Variable"] = X_train.columns
-    # vif_data["VIF"] = [variance_inflation_factor(X_train.values, i) for i in range(X_train.shape[1])]
-    # print("Variance Inflation Factor:")
-    # print(vif_data)
-    
+
     class NeuralNetwork(nn.Module):
         def __init__(self):
             super().__init__() # 부모 클래스 초기화 메서드를 호출
@@ -222,24 +202,53 @@ for i, X in enumerate(models, 1):
             self.linear_relu_stack = nn.Sequential(
                 nn.Linear(X_batch.shape[1], 256),
                 nn.ReLU(),
-                nn.Linear(256, 1),
+                nn.Linear(256, 128),
                 nn.ReLU(),
-                nn.Linear(1, 10),
+                nn.Linear(128, 4),
             )
 
         def forward(self, x):
             x = self.flatten(x)
             logits = self.linear_relu_stack(x)
             return logits
+        
+    model = NeuralNetwork().to(device)
+    criterion = nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr = 0.001)
+
+    # 훈련 루프
+num_epochs = 10  # 에폭 수
+for epoch in range(num_epochs):
+    model.train()  # 모델을 훈련 모드로 설정
+    running_loss = 0.0
+    correct = 0
+    total = 0
     
-    
-    # # 과적합 여부 확인 (훈련/검증 손실 시각화)
-    # plt.plot(history.history['loss'], label='Training Loss')
-    # plt.plot(history.history['val_loss'], label='Validation Loss')
-    # plt.title(f"Overfitting Test, Model {i}")
-    # plt.xlabel('Epochs')
-    # plt.ylabel('Loss')
-    # plt.legend()
-    # # plt.show()
-    # plt.savefig(f"Overfitting_Test_Model_{i}.png", dpi=300, bbox_inches="tight")
-    # plt.close()
+    for batch in train_loader:
+        X_batch, y_batch = batch
+        X_batch, y_batch = X_batch.to(device), y_batch.to(device)
+
+        # 옵티마이저 기울기 초기화
+        optimizer.zero_grad()
+
+        # 예측값 계산
+        outputs = model(X_batch)
+
+        # 손실 계산
+        loss = criterion(outputs, y_batch.long())  # CrossEntropyLoss는 정수형 레이블을 사용
+        loss.backward()  # 역전파
+
+        # 파라미터 업데이트
+        optimizer.step()
+
+        # 손실 추적
+        running_loss += loss.item()
+
+        # 정확도 계산
+        _, predicted = torch.max(outputs, 1)  # 가장 높은 확률의 클래스 예측
+        total += y_batch.size(0)
+        correct += (predicted == y_batch).sum().item()
+
+    epoch_loss = running_loss / len(train_loader)
+    epoch_acc = 100 * correct / total
+    print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {epoch_loss:.4f}, Accuracy: {epoch_acc:.2f}%")
