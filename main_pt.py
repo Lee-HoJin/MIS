@@ -150,6 +150,8 @@ for target in ['MisleadingHealthInfo'] + X_model_3 + [y]:
         print(f"Error casting {target}: {e}")
         # 변환 실패한 변수는 건너뜀
 
+##################################################
+
 class CustomDataset(Dataset) :
     def __init__(self, X, y) :
         self.X = torch.tensor(X.values, dtype=torch.float32)
@@ -174,81 +176,189 @@ print(f"Using {device} device")
 ########## 회귀 분석 파트 Regression Part ##########
 ###################################################
 
-# 각 모델에 대해 반복문 실행 후 성능 기록
-for i, X in enumerate(models, 1):
+class EarlyStopping :
+    def __init__(self, patience = 5, delta = 0) :
+        self.patience = patience # 개선되지 않은 epoch 수
+        self.delta = delta # 개선 기준 (손실 감소량)
+        self.best_loss = None
+        self.counter = 0 # 개선되지 않은 epoch 수
+        self.early_stop = False
 
-    # 데이터셋 생성
-    dataset = CustomDataset(data[X], data[y])
+    def __call__(self, val_loss, model) :
+        if self.best_loss is None :
+            self.best_loss = val_loss
+        elif val_loss < self.best_loss - self.delta :
+            self.best_loss = val_loss
+            self.counter = 0 # 성능이 개선되었으므로 카운터 리셋
+        else :
+            self.counter += 1
 
-    # 3. 데이터셋을 훈련/테스트 세트로 분리
-    train_size = int(0.8 * len(dataset))  # 80% 훈련 데이터
-    test_size = len(dataset) - train_size  # 나머지 20% 테스트 데이터
-    train_dataset, test_dataset = random_split(dataset, [train_size, test_size])
+        if self.counter >= self.patience :
+            self.early_stop = True
+            # print(f"Early stopping triggered after {self.patience} epochs without improvement.")
 
-    # 4. 데이터 로더 생성
-    batch_size = 16
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+        return self.early_stop
 
-    # 데이터 로더를 사용해 배치 단위로 접근
-    for batch in train_loader:
-        X_batch, y_batch = batch        
+model1_accuracy_sum = 0
+model2_accuracy_sum = 0
+model3_accuracy_sum = 0
 
+num_of_tests = 30
 
-    class NeuralNetwork(nn.Module):
-        def __init__(self):
-            super().__init__() # 부모 클래스 초기화 메서드를 호출
-            self.flatten = nn.Flatten() # 보통 첫 번째 차원은 유지하고 나머지 차원을 모두 곱해서 2차원 텐서로 만듦
-            self.linear_relu_stack = nn.Sequential(
-                nn.Linear(X_batch.shape[1], 256),
-                nn.ReLU(),
-                nn.Linear(256, 128),
-                nn.ReLU(),
-                nn.Linear(128, 4),
-            )
+for iteration in range(num_of_tests) :
+    # 각 모델에 대해 반복문 실행 후 성능 기록
+    for i, X in enumerate(models, 1):
+        print(f"__Model {i}  iteration {iteration + 1}")
 
-        def forward(self, x):
-            x = self.flatten(x)
-            logits = self.linear_relu_stack(x)
-            return logits
+        # 데이터셋 생성
+        dataset = CustomDataset(data[X], data[y])
+
+        # 데이터셋을 훈련/검증/테스트 세트로 분리
+        train_size = int(0.8 * len(dataset))  # 80% 훈련 데이터
+        val_size = int(0.1 * len(dataset))  # 10% 검증 데이터
+        test_size = len(dataset) - train_size - val_size  # 나머지 10% 테스트 데이터
+
+        # 데이터셋을 훈련, 검증, 테스트로 분리
+        train_dataset, val_dataset, test_dataset = random_split(dataset, [train_size, val_size, test_size])
+
+        # 데이터 로더 생성
+        batch_size = 32
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+        val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+        test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+
+        for batch in train_loader:
+            X_batch, y_batch = batch
+            input_features = X_batch.shape[1]
+            break
+
+        class NeuralNetwork(nn.Module):
+            def __init__(self):
+                super().__init__() # 부모 클래스 초기화 메서드를 호출
+                self.flatten = nn.Flatten() # 보통 첫 번째 차원은 유지하고 나머지 차원을 모두 곱해서 2차원 텐서로 만듦
+                self.linear_relu_stack = nn.Sequential(
+                    nn.Linear(input_features, 32),
+                    nn.ReLU(),
+                    nn.Dropout(0.5),
+                    nn.Linear(32, 4),
+                )
+
+            def forward(self, x):
+                x = self.flatten(x)
+                logits = self.linear_relu_stack(x)
+                return logits
         
-    model = NeuralNetwork().to(device)
-    criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr = 0.001)
+        # 모델 정의 및 훈련
+        model = NeuralNetwork().to(device)
+        criterion = nn.CrossEntropyLoss()
+        optimizer = torch.optim.Adam(model.parameters(), lr = 0.005)
 
-    # 훈련 루프
-num_epochs = 10  # 에폭 수
-for epoch in range(num_epochs):
-    model.train()  # 모델을 훈련 모드로 설정
-    running_loss = 0.0
-    correct = 0
-    total = 0
+        # EarlyStopping 객체 생성
+        early_stopping = EarlyStopping(patience = 20, delta = 0.1)
+
+        # 훈련 루프
+        num_epochs = 161  # 에폭 수
+        for epoch in range(num_epochs):
+            model.train()  # 모델을 훈련 모드로 설정
+            running_loss = 0.0
+            correct = 0
+            total = 0
+            
+            for batch in train_loader:
+                X_batch, y_batch = batch
+                X_batch, y_batch = X_batch.to(device), y_batch.to(device)
+
+                # 옵티마이저 기울기 초기화
+                optimizer.zero_grad()
+
+                # 예측값 계산
+                outputs = model(X_batch)
+
+                # 손실 계산
+                loss = criterion(outputs, y_batch.long())  # CrossEntropyLoss는 정수형 레이블을 사용
+                loss.backward()  # 역전파
+
+                # 파라미터 업데이트
+                optimizer.step()
+
+                # 손실 추적
+                running_loss += loss.item()
+
+                # 정확도 계산
+                _, predicted = torch.max(outputs, 1)  # 가장 높은 확률의 클래스 예측
+                total += y_batch.size(0)
+                correct += (predicted == y_batch).sum().item()
+
+            epoch_loss = running_loss / len(train_loader)
+            epoch_acc = 100 * correct / total
+            if epoch % 20 == 0 :
+                print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {epoch_loss:.4f}, Accuracy: {epoch_acc:.2f}%")
+
+            # 검증 정확도 계산 (매 에폭마다 검증 데이터로 성능 평가)
+            model.eval()
+            val_loss = 0.0
+            val_correct = 0
+            val_total = 0
+            with torch.no_grad():
+                for batch in val_loader:
+                    X_batch, y_batch = batch
+                    X_batch, y_batch = X_batch.to(device), y_batch.to(device)
+
+                    outputs = model(X_batch)
+                    loss = criterion(outputs, y_batch.long())
+                    val_loss += loss.item()
+
+                    _, predicted = torch.max(outputs, 1)
+                    val_total += y_batch.size(0)
+                    val_correct += (predicted == y_batch).sum().item()
+
+            val_loss /= len(val_loader)
+            val_acc = 100 * val_correct / val_total
+            if epoch % 20 == 0:
+                print(f"Validation Loss: {val_loss:.4f}, Validation Accuracy: {val_acc:.2f}%")
+
+            # EarlyStopping 체크
+            if early_stopping(val_loss, model):
+                print(f"Stopping early at epoch {epoch+1}")
+                break
+            
+        # 마지막 테스트 정확도 계산
+        model.eval()
+        test_correct = 0
+        test_total = 0
+        test_loss = 0.0
+
+        with torch.no_grad():
+            for batch in test_loader:
+                X_batch, y_batch = batch
+                X_batch, y_batch = X_batch.to(device), y_batch.to(device)
+
+                outputs = model(X_batch)
+                loss = criterion(outputs, y_batch.long())
+                test_loss += loss.item()
+
+                _, predicted = torch.max(outputs, 1)
+                test_total += y_batch.size(0)
+                test_correct += (predicted == y_batch).sum().item()
+
+        test_acc = 100 * test_correct / test_total
+        test_loss /= len(test_loader)  # 평균 손실
     
-    for batch in train_loader:
-        X_batch, y_batch = batch
-        X_batch, y_batch = X_batch.to(device), y_batch.to(device)
+        if i == 1 :
+            model1_accuracy_sum += test_acc
+        elif i == 2 :
+            model2_accuracy_sum += test_acc
+        elif i == 3:
+            model3_accuracy_sum += test_acc
 
-        # 옵티마이저 기울기 초기화
-        optimizer.zero_grad()
+    print("")
 
-        # 예측값 계산
-        outputs = model(X_batch)
+# 전체 테스트 반복 결과의 평균
+model1_avg_accuracy = model1_accuracy_sum / num_of_tests
+model2_avg_accuracy = model2_accuracy_sum / num_of_tests
+model3_avg_accuracy = model3_accuracy_sum / num_of_tests
 
-        # 손실 계산
-        loss = criterion(outputs, y_batch.long())  # CrossEntropyLoss는 정수형 레이블을 사용
-        loss.backward()  # 역전파
-
-        # 파라미터 업데이트
-        optimizer.step()
-
-        # 손실 추적
-        running_loss += loss.item()
-
-        # 정확도 계산
-        _, predicted = torch.max(outputs, 1)  # 가장 높은 확률의 클래스 예측
-        total += y_batch.size(0)
-        correct += (predicted == y_batch).sum().item()
-
-    epoch_loss = running_loss / len(train_loader)
-    epoch_acc = 100 * correct / total
-    print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {epoch_loss:.4f}, Accuracy: {epoch_acc:.2f}%")
+print(f"\n{num_of_tests} processes was conducted")
+print(f"Model 1 Average Accuracy: {model1_avg_accuracy:.4f}")
+print(f"Model 2 Average Accuracy: {model2_avg_accuracy:.4f}")
+print(f"Model 3 Average Accuracy: {model3_avg_accuracy:.4f}")
