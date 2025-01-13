@@ -154,60 +154,76 @@ for target in ['MisleadingHealthInfo'] + X_model_3 + [y]:
 ########## 회귀 분석 파트 Regression Part ##########
 ###################################################
 
-results = []
+model1_accuracy_sum = 0
+model2_accuracy_sum = 0
+model3_accuracy_sum = 0
 
-# 각 모델에 대해 반복문 실행 후 성능 기록
-for i, X in enumerate(models, 1):
-    # y 변수는 1D 배열로 변환
-    X_train, X_test, y_train, y_test = train_test_split(data[X], data[y], test_size=0.2, random_state=42)
+for iteration in range(10) :
+    print(f"_Test Num: {iteration + 1}")
+    # 각 모델에 대해 반복문 실행 후 성능 기록
+    for i, X in enumerate(models, 1):   
+        X_train, X_test, y_train, y_test = train_test_split(data[X], data[y], test_size=0.2, random_state=42)
 
-    model = tf.keras.Sequential([
-        Dense(16, activation='relu', input_shape=(X_train.shape[1],)),
-        Dropout(0.5),
-        Dense(4, activation='relu'),
-        Dropout(0.5),
-        Dense(4, 'softmax')
-    ])
+        model = tf.keras.Sequential([
+            Dense(16, activation='relu', input_shape=(X_train.shape[1],)),
+            Dropout(0.5),
+            Dense(4, activation='relu'),
+            Dropout(0.5),
+            Dense(4, 'softmax')
+        ])
 
-    optimizer = tf.keras.optimizers.Adam(learning_rate = 0.01)
+        optimizer = tf.keras.optimizers.Adam(learning_rate = 0.01)
 
-    model.compile(
-        loss='sparse_categorical_crossentropy',
-        optimizer = optimizer,
-        metrics = ['accuracy']
-    )
-    # model.summary()
+        model.compile(
+            loss='sparse_categorical_crossentropy',
+            optimizer = optimizer,
+            metrics = ['accuracy']
+        )
+        # model.summary()
 
-    early_stopping = EarlyStopping(
-        monitor = 'val_loss',
-        patience = 10,
-        restore_best_weights=True
-    )
+        early_stopping = EarlyStopping(
+            monitor = 'val_loss',
+            patience = 10,
+            restore_best_weights=True
+        )
 
-    history = model.fit(
-        X_train, y_train,
-        batch_size = 32,
-        epochs = 300,
-        shuffle = True,
-        verbose = 0,
-        validation_split = 0.2,
-        callbacks=[early_stopping]
-    )
+        history = model.fit(
+            X_train, y_train,
+            batch_size = 32,
+            epochs = 300,
+            shuffle = True,
+            verbose = 0,
+            validation_split = 0.2,
+            callbacks=[early_stopping]
+        )
 
-    test_loss, test_accuracy = model.evaluate(X_test, y_test, batch_size = 32)
-    print(f"Test Loss: {test_loss}")
-    print(f"Test Accuracy: {test_accuracy}")
-    results.append(f"Model {i} - {test_accuracy}")
-    
-    # # 과적합 여부 확인 (훈련/검증 손실 시각화)
-    # plt.plot(history.history['loss'], label='Training Loss')
-    # plt.plot(history.history['val_loss'], label='Validation Loss')
-    # plt.title(f"Overfitting Test, Model {i}")
-    # plt.xlabel('Epochs')
-    # plt.ylabel('Loss')
-    # plt.legend()
-    # # plt.show()
-    # plt.savefig(f"Overfitting_Test_Model_{i}.png", dpi=300, bbox_inches="tight")
-    # plt.close()
+        test_loss, test_accuracy = model.evaluate(X_test, y_test, batch_size = 32)
+        print(f"Test Loss: {test_loss}")
+        print(f"Test Accuracy: {test_accuracy}")
 
-print(results)
+        if i == 1 :
+            model1_accuracy_sum += test_accuracy
+        elif i == 2 :
+            model2_accuracy_sum += test_accuracy
+        elif i == 3:
+            model3_accuracy_sum += test_accuracy
+        
+        # # 과적합 여부 확인 (훈련/검증 손실 시각화)
+        # plt.plot(history.history['loss'], label='Training Loss')
+        # plt.plot(history.history['val_loss'], label='Validation Loss')
+        # plt.title(f"Overfitting Test, Model {i}")
+        # plt.xlabel('Epochs')
+        # plt.ylabel('Loss')
+        # plt.legend()
+        # # plt.show()
+        # plt.savefig(f"Overfitting_Test_Model_{i}.png", dpi=300, bbox_inches="tight")
+        # plt.close()
+
+# 10번의 반복 평균
+model1_avg_accuracy = model1_accuracy_sum / 10
+model2_avg_accuracy = model2_accuracy_sum / 10
+model3_avg_accuracy = model3_accuracy_sum / 10
+
+print(f"Model 1 Average Accuracy: {model1_avg_accuracy:.4f}")
+print(f"Model 2 Average Accuracy: {model2_avg_accuracy:.4f}")
+print(f"Model 3 Average Accuracy: {model3_avg_accuracy:.4f}")
