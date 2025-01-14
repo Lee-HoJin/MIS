@@ -1,5 +1,7 @@
 import pandas as pd
 import numpy as np
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 from sklearn.decomposition import PCA
@@ -154,25 +156,27 @@ for target in ['MisleadingHealthInfo'] + X_model_3 + [y]:
 ########## 회귀 분석 파트 Regression Part ##########
 ###################################################
 
+num_of_tests = 10
 model1_accuracy_sum = 0
 model2_accuracy_sum = 0
 model3_accuracy_sum = 0
 
-for iteration in range(10) :
+for iteration in range(num_of_tests) :
     print(f"_Test Num: {iteration + 1}")
+    
     # 각 모델에 대해 반복문 실행 후 성능 기록
     for i, X in enumerate(models, 1):   
-        X_train, X_test, y_train, y_test = train_test_split(data[X], data[y], test_size=0.2, random_state=42)
+        X_train, X_test, y_train, y_test = train_test_split(data[X], data[y], test_size=0.1, random_state=42)
 
         model = tf.keras.Sequential([
-            Dense(16, activation='relu', input_shape=(X_train.shape[1],)),
+            Dense(128, activation='relu',
+                  kernel_initializer = 'he_normal',
+                  input_shape=(X_train.shape[1],)),
             Dropout(0.5),
-            Dense(4, activation='relu'),
-            Dropout(0.5),
-            Dense(4, 'softmax')
+            Dense(4, kernel_initializer = 'he_normal', activation = 'softmax')
         ])
 
-        optimizer = tf.keras.optimizers.Adam(learning_rate = 0.01)
+        optimizer = tf.keras.optimizers.Adam(learning_rate = 0.001)
 
         model.compile(
             loss='sparse_categorical_crossentropy',
@@ -189,15 +193,15 @@ for iteration in range(10) :
 
         history = model.fit(
             X_train, y_train,
-            batch_size = 32,
+            batch_size = 64,
             epochs = 300,
             shuffle = True,
             verbose = 0,
-            validation_split = 0.2,
+            validation_split = 0.1,
             callbacks=[early_stopping]
         )
 
-        test_loss, test_accuracy = model.evaluate(X_test, y_test, batch_size = 32)
+        test_loss, test_accuracy = model.evaluate(X_test, y_test, batch_size = 64)
         print(f"Test Loss: {test_loss}")
         print(f"Test Accuracy: {test_accuracy}")
 
@@ -219,10 +223,12 @@ for iteration in range(10) :
         # plt.savefig(f"Overfitting_Test_Model_{i}.png", dpi=300, bbox_inches="tight")
         # plt.close()
 
-# 10번의 반복 평균
-model1_avg_accuracy = model1_accuracy_sum / 10
-model2_avg_accuracy = model2_accuracy_sum / 10
-model3_avg_accuracy = model3_accuracy_sum / 10
+    print("")
+
+# 지정된 횟수 반복 평균
+model1_avg_accuracy = model1_accuracy_sum / num_of_tests
+model2_avg_accuracy = model2_accuracy_sum / num_of_tests
+model3_avg_accuracy = model3_accuracy_sum / num_of_tests
 
 print(f"Model 1 Average Accuracy: {model1_avg_accuracy:.4f}")
 print(f"Model 2 Average Accuracy: {model2_avg_accuracy:.4f}")
