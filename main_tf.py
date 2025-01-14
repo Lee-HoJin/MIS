@@ -135,6 +135,7 @@ X_model_3 = X_model_2 + ['MisleadingHealthInfo']
 
 models = [X_model_1, X_model_2, X_model_3]
 
+
 # 'Social Media' 사용자들의 응답만 남기기 위함
 data['MisleadingHealthInfo'] = data['MisleadingHealthInfo'].replace(-1, np.nan)
 
@@ -152,6 +153,14 @@ for target in ['MisleadingHealthInfo'] + X_model_3 + [y]:
         print(f"Error casting {target}: {e}")
         # 변환 실패한 변수는 건너뜀
 
+# 정규화
+for column in data[X_model_3]:
+    if column == 'Age_Income_PC1':
+        continue
+
+    # 'Age_Income_PC1' 제외한 다른 칼럼들에 대해서만 정규화 적용
+    data[column] = scaler.fit_transform(data[[column]])
+
 ###################################################
 ########## 회귀 분석 파트 Regression Part ##########
 ###################################################
@@ -167,7 +176,7 @@ for iteration in range(num_of_tests) :
     # 각 모델에 대해 반복문 실행 후 성능 기록
     for i, X in enumerate(models, 1):   
         X_train, X_test, y_train, y_test = train_test_split(data[X], data[y], test_size=0.1, random_state=42)
-
+        
         model = tf.keras.Sequential([
             Dense(128, activation='relu',
                   kernel_initializer = 'he_normal',
@@ -212,16 +221,17 @@ for iteration in range(num_of_tests) :
         elif i == 3:
             model3_accuracy_sum += test_accuracy
         
-        # # 과적합 여부 확인 (훈련/검증 손실 시각화)
-        # plt.plot(history.history['loss'], label='Training Loss')
-        # plt.plot(history.history['val_loss'], label='Validation Loss')
-        # plt.title(f"Overfitting Test, Model {i}")
-        # plt.xlabel('Epochs')
-        # plt.ylabel('Loss')
-        # plt.legend()
-        # # plt.show()
-        # plt.savefig(f"Overfitting_Test_Model_{i}.png", dpi=300, bbox_inches="tight")
-        # plt.close()
+        if iteration == 0:
+            # 과적합 여부 확인 (훈련/검증 손실 시각화)
+            plt.plot(history.history['loss'], label='Training Loss')
+            plt.plot(history.history['val_loss'], label='Validation Loss')
+            plt.title(f"Overfitting Test, Model {i}")
+            plt.xlabel('Epochs')
+            plt.ylabel('Loss')
+            plt.legend()
+            # plt.show()
+            plt.savefig(f"Overfitting_Test_Model_{i}.png", dpi=300, bbox_inches="tight")
+            plt.close()
 
     print("")
 
