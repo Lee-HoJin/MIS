@@ -9,6 +9,7 @@ from sklearn.decomposition import PCA
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout
+from tensorflow.keras import layers, regularizers
 from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.optimizers import Adam
 from sklearn.preprocessing import StandardScaler
@@ -178,14 +179,17 @@ for iteration in range(num_of_tests) :
         X_train, X_test, y_train, y_test = train_test_split(data[X], data[y], test_size=0.1, random_state=42)
         
         model = tf.keras.Sequential([
-            Dense(128, activation='relu',
+            Dense(512, activation = 'relu',
                   kernel_initializer = 'he_normal',
+                  kernel_regularizer=regularizers.l2(0.001),
                   input_shape=(X_train.shape[1],)),
             Dropout(0.5),
-            Dense(4, kernel_initializer = 'he_normal', activation = 'softmax')
+            Dense(4, activation = 'softmax',
+                  kernel_initializer = 'he_normal'
+                 )
         ])
 
-        optimizer = tf.keras.optimizers.Adam(learning_rate = 0.001)
+        optimizer = tf.keras.optimizers.Adam(learning_rate = 0.005)
 
         model.compile(
             loss='sparse_categorical_crossentropy',
@@ -203,7 +207,7 @@ for iteration in range(num_of_tests) :
         history = model.fit(
             X_train, y_train,
             batch_size = 64,
-            epochs = 300,
+            epochs = 100,
             shuffle = True,
             verbose = 0,
             validation_split = 0.1,
@@ -225,6 +229,7 @@ for iteration in range(num_of_tests) :
             # 과적합 여부 확인 (훈련/검증 손실 시각화)
             plt.plot(history.history['loss'], label='Training Loss')
             plt.plot(history.history['val_loss'], label='Validation Loss')
+            plt.axhline(y=test_loss, label='Test Loss', linestyle='--', color='r')
             plt.title(f"Overfitting Test, Model {i}")
             plt.xlabel('Epochs')
             plt.ylabel('Loss')
