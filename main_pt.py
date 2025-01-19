@@ -149,6 +149,14 @@ for target in ['MisleadingHealthInfo'] + X_model_3 + [y]:
     except ValueError as e:
         print(f"Error casting {target}: {e}")
         # 변환 실패한 변수는 건너뜀
+        
+# 정규화
+for column in data[X_model_3]:
+    if column == 'Age_Income_PC1':
+        continue
+
+    # 'Age_Income_PC1' 제외한 다른 칼럼들에 대해서만 정규화 적용
+    data[column] = scaler.fit_transform(data[[column]])
 
 ##################################################
 
@@ -203,7 +211,7 @@ model1_accuracy_sum = 0
 model2_accuracy_sum = 0
 model3_accuracy_sum = 0
 
-num_of_tests = 30
+num_of_tests = 15
 
 for iteration in range(num_of_tests) :
     # 각 모델에 대해 반복문 실행 후 성능 기록
@@ -222,7 +230,7 @@ for iteration in range(num_of_tests) :
         train_dataset, val_dataset, test_dataset = random_split(dataset, [train_size, val_size, test_size])
 
         # 데이터 로더 생성
-        batch_size = 32
+        batch_size = 64
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
         val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
         test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
@@ -237,10 +245,16 @@ for iteration in range(num_of_tests) :
                 super().__init__() # 부모 클래스 초기화 메서드를 호출
                 self.flatten = nn.Flatten() # 보통 첫 번째 차원은 유지하고 나머지 차원을 모두 곱해서 2차원 텐서로 만듦
                 self.linear_relu_stack = nn.Sequential(
-                    nn.Linear(input_features, 32),
+                    nn.Linear(input_features, 256),
                     nn.ReLU(),
                     nn.Dropout(0.5),
-                    nn.Linear(32, 4),
+                    nn.Linear(256, 256),
+                    nn.ReLU(),
+                    nn.Dropout(0.5),
+                    nn.Linear(256, 64),
+                    nn.ReLU(),
+                    nn.Dropout(0.5),
+                    nn.Linear(64, 4),
                 )
 
             def forward(self, x):
@@ -251,10 +265,10 @@ for iteration in range(num_of_tests) :
         # 모델 정의 및 훈련
         model = NeuralNetwork().to(device)
         criterion = nn.CrossEntropyLoss()
-        optimizer = torch.optim.Adam(model.parameters(), lr = 0.005)
+        optimizer = torch.optim.Adam(model.parameters(), lr = 0.001)
 
         # EarlyStopping 객체 생성
-        early_stopping = EarlyStopping(patience = 20, delta = 0.1)
+        early_stopping = EarlyStopping(patience = 40, delta = 0.1)
 
         # 훈련 루프
         num_epochs = 161  # 에폭 수
@@ -292,7 +306,8 @@ for iteration in range(num_of_tests) :
             epoch_loss = running_loss / len(train_loader)
             epoch_acc = 100 * correct / total
             if epoch % 20 == 0 :
-                print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {epoch_loss:.4f}, Accuracy: {epoch_acc:.2f}%")
+                # print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {epoch_loss:.4f}, Accuracy: {epoch_acc:.2f}%")
+                continue
 
             # 검증 정확도 계산 (매 에폭마다 검증 데이터로 성능 평가)
             model.eval()
@@ -315,11 +330,12 @@ for iteration in range(num_of_tests) :
             val_loss /= len(val_loader)
             val_acc = 100 * val_correct / val_total
             if epoch % 20 == 0:
-                print(f"Validation Loss: {val_loss:.4f}, Validation Accuracy: {val_acc:.2f}%")
+                # print(f"Validation Loss: {val_loss:.4f}, Validation Accuracy: {val_acc:.2f}%")
+                continue
 
             # EarlyStopping 체크
             if early_stopping(val_loss, model):
-                print(f"Stopping early at epoch {epoch+1}")
+                # print(f"Stopping early at epoch {epoch+1}")
                 break
             
         # 마지막 테스트 정확도 계산
