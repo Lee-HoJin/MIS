@@ -1,5 +1,7 @@
 import pandas as pd
 import numpy as np
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 from sklearn.decomposition import PCA
@@ -7,6 +9,7 @@ from sklearn.decomposition import PCA
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout
+from tensorflow.keras import layers, regularizers
 from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.optimizers import Adam
 from sklearn.preprocessing import StandardScaler
@@ -133,6 +136,7 @@ X_model_3 = X_model_2 + ['MisleadingHealthInfo']
 
 models = [X_model_1, X_model_2, X_model_3]
 
+
 # 'Social Media' 사용자들의 응답만 남기기 위함
 data['MisleadingHealthInfo'] = data['MisleadingHealthInfo'].replace(-1, np.nan)
 
@@ -150,29 +154,42 @@ for target in ['MisleadingHealthInfo'] + X_model_3 + [y]:
         print(f"Error casting {target}: {e}")
         # 변환 실패한 변수는 건너뜀
 
+# 정규화
+for column in data[X_model_3]:
+    if column == 'Age_Income_PC1':
+        continue
+
+    # 'Age_Income_PC1' 제외한 다른 칼럼들에 대해서만 정규화 적용
+    data[column] = scaler.fit_transform(data[[column]])
+
 ###################################################
 ########## 회귀 분석 파트 Regression Part ##########
 ###################################################
 
+num_of_tests = 10
 model1_accuracy_sum = 0
 model2_accuracy_sum = 0
 model3_accuracy_sum = 0
 
-for iteration in range(10) :
+for iteration in range(num_of_tests) :
     print(f"_Test Num: {iteration + 1}")
+    
     # 각 모델에 대해 반복문 실행 후 성능 기록
     for i, X in enumerate(models, 1):   
-        X_train, X_test, y_train, y_test = train_test_split(data[X], data[y], test_size=0.2, random_state=42)
-
+        X_train, X_test, y_train, y_test = train_test_split(data[X], data[y], test_size=0.1, random_state=42)
+        
         model = tf.keras.Sequential([
-            Dense(16, activation='relu', input_shape=(X_train.shape[1],)),
+            Dense(512, activation = 'relu',
+                  kernel_initializer = 'he_normal',
+                  kernel_regularizer=regularizers.l2(0.001),
+                  input_shape=(X_train.shape[1],)),
             Dropout(0.5),
-            Dense(4, activation='relu'),
-            Dropout(0.5),
-            Dense(4, 'softmax')
+            Dense(4, activation = 'softmax',
+                  kernel_initializer = 'he_normal'
+                 )
         ])
 
-        optimizer = tf.keras.optimizers.Adam(learning_rate = 0.01)
+        optimizer = tf.keras.optimizers.Adam(learning_rate = 0.005)
 
         model.compile(
             loss='sparse_categorical_crossentropy',
@@ -189,15 +206,15 @@ for iteration in range(10) :
 
         history = model.fit(
             X_train, y_train,
-            batch_size = 32,
-            epochs = 300,
+            batch_size = 64,
+            epochs = 100,
             shuffle = True,
             verbose = 0,
-            validation_split = 0.2,
+            validation_split = 0.1,
             callbacks=[early_stopping]
         )
 
-        test_loss, test_accuracy = model.evaluate(X_test, y_test, batch_size = 32)
+        test_loss, test_accuracy = model.evaluate(X_test, y_test, batch_size = 64)
         print(f"Test Loss: {test_loss}")
         print(f"Test Accuracy: {test_accuracy}")
 
@@ -208,21 +225,25 @@ for iteration in range(10) :
         elif i == 3:
             model3_accuracy_sum += test_accuracy
         
-        # # 과적합 여부 확인 (훈련/검증 손실 시각화)
-        # plt.plot(history.history['loss'], label='Training Loss')
-        # plt.plot(history.history['val_loss'], label='Validation Loss')
-        # plt.title(f"Overfitting Test, Model {i}")
-        # plt.xlabel('Epochs')
-        # plt.ylabel('Loss')
-        # plt.legend()
-        # # plt.show()
-        # plt.savefig(f"Overfitting_Test_Model_{i}.png", dpi=300, bbox_inches="tight")
-        # plt.close()
+        if iteration == 0:
+            # 과적합 여부 확인 (훈련/검증 손실 시각화)
+            plt.plot(history.history['loss'], label='Training Loss')
+            plt.plot(history.history['val_loss'], label='Validation Loss')
+            plt.axhline(y=test_loss, label='Test Loss', linestyle='--', color='r')
+            plt.title(f"Overfitting Test, Model {i}")
+            plt.xlabel('Epochs')
+            plt.ylabel('Loss')
+            plt.legend()
+            # plt.show()
+            plt.savefig(f"Overfitting_Test_Model_{i}.png", dpi=300, bbox_inches="tight")
+            plt.close()
 
-# 10번의 반복 평균
-model1_avg_accuracy = model1_accuracy_sum / 10
-model2_avg_accuracy = model2_accuracy_sum / 10
-model3_avg_accuracy = model3_accuracy_sum / 10
+    print("")
+
+# 지정된 횟수 반복 평균
+model1_avg_accuracy = model1_accuracy_sum / num_of_tests
+model2_avg_accuracy = model2_accuracy_sum / num_of_tests
+model3_avg_accuracy = model3_accuracy_sum / num_of_tests
 
 print(f"Model 1 Average Accuracy: {model1_avg_accuracy:.4f}")
 print(f"Model 2 Average Accuracy: {model2_avg_accuracy:.4f}")

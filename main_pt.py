@@ -245,16 +245,10 @@ for iteration in range(num_of_tests) :
                 super().__init__() # 부모 클래스 초기화 메서드를 호출
                 self.flatten = nn.Flatten() # 보통 첫 번째 차원은 유지하고 나머지 차원을 모두 곱해서 2차원 텐서로 만듦
                 self.linear_relu_stack = nn.Sequential(
-                    nn.Linear(input_features, 256),
+                    nn.Linear(input_features, 512),
                     nn.ReLU(),
                     nn.Dropout(0.5),
-                    nn.Linear(256, 256),
-                    nn.ReLU(),
-                    nn.Dropout(0.5),
-                    nn.Linear(256, 64),
-                    nn.ReLU(),
-                    nn.Dropout(0.5),
-                    nn.Linear(64, 4),
+                    nn.Linear(512, 4),
                 )
 
             def forward(self, x):
@@ -262,13 +256,25 @@ for iteration in range(num_of_tests) :
                 logits = self.linear_relu_stack(x)
                 return logits
         
+        # 가중치 초기화
+        def init_weights(m) :
+            if isinstance(m, nn.Linear) :
+                # He 초기화
+                nn.init.kaiming_normal_(m.weight, nonlinearity = 'relu')
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+        
         # 모델 정의 및 훈련
-        model = NeuralNetwork().to(device)
+        model = NeuralNetwork()
+        # 가중치 초기화 적용
+        model.apply(init_weights)
+        model = model.to(device)
+        
         criterion = nn.CrossEntropyLoss()
         optimizer = torch.optim.Adam(model.parameters(), lr = 0.001)
 
         # EarlyStopping 객체 생성
-        early_stopping = EarlyStopping(patience = 40, delta = 0.1)
+        early_stopping = EarlyStopping(patience = 40, delta = 0.05)
 
         # 훈련 루프
         num_epochs = 161  # 에폭 수
@@ -306,8 +312,7 @@ for iteration in range(num_of_tests) :
             epoch_loss = running_loss / len(train_loader)
             epoch_acc = 100 * correct / total
             if epoch % 20 == 0 :
-                # print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {epoch_loss:.4f}, Accuracy: {epoch_acc:.2f}%")
-                continue
+                print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {epoch_loss:.4f}, Accuracy: {epoch_acc:.2f}%")
 
             # 검증 정확도 계산 (매 에폭마다 검증 데이터로 성능 평가)
             model.eval()
@@ -330,12 +335,12 @@ for iteration in range(num_of_tests) :
             val_loss /= len(val_loader)
             val_acc = 100 * val_correct / val_total
             if epoch % 20 == 0:
-                # print(f"Validation Loss: {val_loss:.4f}, Validation Accuracy: {val_acc:.2f}%")
+                print(f"Validation Loss: {val_loss:.4f}, Validation Accuracy: {val_acc:.2f}%")
                 continue
 
             # EarlyStopping 체크
             if early_stopping(val_loss, model):
-                # print(f"Stopping early at epoch {epoch+1}")
+                print(f"Stopping early at epoch {epoch+1}")
                 break
             
         # 마지막 테스트 정확도 계산
