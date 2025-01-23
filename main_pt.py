@@ -8,6 +8,7 @@ torch.cuda.init()  # CUDA 초기화
 from torch import nn
 from torch.utils.data import DataLoader, Dataset, random_split
 from torchvision import datasets, transforms
+from torch.optim.lr_scheduler import StepLR
 
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -203,17 +204,39 @@ model1_accuracy_sum = 0
 model2_accuracy_sum = 0
 model3_accuracy_sum = 0
 
-num_of_tests = 10
+num_of_tests = 7
+
+
+class NeuralNetwork(nn.Module):
+    def __init__(self):
+        super().__init__() # 부모 클래스 초기화 메서드를 호출
+        self.flatten = nn.Flatten() # 보통 첫 번째 차원은 유지하고 나머지 차원을 모두 곱해서 2차원 텐서로 만듦
+        self.linear_relu_stack = nn.Sequential(
+            nn.Linear(input_features, 256),
+            nn.ReLU(),
+            nn.Dropout(0.5),
+            nn.Linear(256, 256),
+            nn.ReLU(),
+            nn.Dropout(0.5),
+            nn.Linear(256, 4),
+        )
+
+    def forward(self, x):
+        x = self.flatten(x)
+        logits = self.linear_relu_stack(x)
+        return logits
+    
+def init_weights(m) :
+    if isinstance(m, nn.Linear) :
+        # He 초기화
+        nn.init.kaiming_normal_(m.weight, nonlinearity = 'relu')
+        if m.bias is not None:
+            nn.init.zeros_(m.bias)
 
 for iteration in range(num_of_tests) :
     # 각 모델에 대해 반복문 실행 후 성능 기록
     for i, X in enumerate(models, 1):
         print(f"__Model {i}  iteration {iteration + 1}")
-
-        # # 정규화(or Scaling)
-        # scaler = StandardScaler()
-        # scaler.fit(data[X])
-        # X_scaled = scaler.transform(data[X])
 
         # 데이터셋 생성
         dataset = CustomDataset(data[X], data[y])
@@ -236,29 +259,6 @@ for iteration in range(num_of_tests) :
             X_batch, y_batch = batch
             input_features = X_batch.shape[1]
             break
-
-        class NeuralNetwork(nn.Module):
-            def __init__(self):
-                super().__init__() # 부모 클래스 초기화 메서드를 호출
-                self.flatten = nn.Flatten() # 보통 첫 번째 차원은 유지하고 나머지 차원을 모두 곱해서 2차원 텐서로 만듦
-                self.linear_relu_stack = nn.Sequential(
-                    nn.Linear(input_features, 256),
-                    nn.ReLU(),
-                    nn.Dropout(0.5),
-                    nn.Linear(256, 4),
-                )
-
-            def forward(self, x):
-                x = self.flatten(x)
-                logits = self.linear_relu_stack(x)
-                return logits
-            
-        def init_weights(m) :
-            if isinstance(m, nn.Linear) :
-                # He 초기화
-                nn.init.kaiming_normal_(m.weight, nonlinearity = 'relu')
-                if m.bias is not None:
-                    nn.init.zeros_(m.bias)
                
         # 모델 정의 및 훈련
         model = NeuralNetwork()
@@ -267,10 +267,16 @@ for iteration in range(num_of_tests) :
         model = model.to(device)
 
         criterion = nn.CrossEntropyLoss()
-        optimizer = torch.optim.Adam(model.parameters(), lr = 0.005)
+        optimizer = torch.optim.Adam(model.parameters(),
+                                     lr = 0.0005,
+                                     weight_decay = 1e-3
+                                     )
+        scheduler = StepLR(optimizer,
+                           step_size = 20,
+                           gamma = 0.1)
 
         # EarlyStopping 객체 생성
-        early_stopping = EarlyStopping(patience = 40, delta = 0.05)
+        early_stopping = EarlyStopping(patience = 80, delta = 0.01)
 
         # 훈련 루프
         num_epochs = 161  # 에폭 수
