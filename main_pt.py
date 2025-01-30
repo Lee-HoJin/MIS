@@ -8,6 +8,7 @@ torch.cuda.init()  # CUDA 초기화
 from torch import nn
 from torch.utils.data import DataLoader, Dataset, random_split
 from torchvision import datasets, transforms
+from torch.optim.lr_scheduler import StepLR
 
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -149,14 +150,6 @@ for target in ['MisleadingHealthInfo'] + X_model_3 + [y]:
     except ValueError as e:
         print(f"Error casting {target}: {e}")
         # 변환 실패한 변수는 건너뜀
-        
-# 정규화
-for column in data[X_model_3]:
-    if column == 'Age_Income_PC1':
-        continue
-
-    # 'Age_Income_PC1' 제외한 다른 칼럼들에 대해서만 정규화 적용
-    data[column] = scaler.fit_transform(data[[column]])
 
 ##################################################
 
@@ -211,7 +204,35 @@ model1_accuracy_sum = 0
 model2_accuracy_sum = 0
 model3_accuracy_sum = 0
 
-num_of_tests = 15
+num_of_tests = 10
+batch_size_ = 64
+learning_rate = 0.0005
+
+class NeuralNetwork(nn.Module):
+    def __init__(self):
+        super().__init__() # 부모 클래스 초기화 메서드를 호출
+        self.flatten = nn.Flatten() # 보통 첫 번째 차원은 유지하고 나머지 차원을 모두 곱해서 2차원 텐서로 만듦
+        self.linear_relu_stack = nn.Sequential(
+            nn.Linear(input_features, 256),
+            nn.ReLU(),
+            nn.Dropout(0.5),
+            nn.Linear(256, 256),
+            nn.ReLU(),
+            nn.Dropout(0.5),
+            nn.Linear(256, 4),
+        )
+
+    def forward(self, x):
+        x = self.flatten(x)
+        logits = self.linear_relu_stack(x)
+        return logits
+    
+def init_weights(m) :
+    if isinstance(m, nn.Linear) :
+        # He 초기화
+        nn.init.kaiming_normal_(m.weight, nonlinearity = 'relu')
+        if m.bias is not None:
+            nn.init.zeros_(m.bias)
 
 for iteration in range(num_of_tests) :
     # 각 모델에 대해 반복문 실행 후 성능 기록
@@ -230,7 +251,7 @@ for iteration in range(num_of_tests) :
         train_dataset, val_dataset, test_dataset = random_split(dataset, [train_size, val_size, test_size])
 
         # 데이터 로더 생성
-        batch_size = 64
+        batch_size = batch_size_
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
         val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
         test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
@@ -239,42 +260,24 @@ for iteration in range(num_of_tests) :
             X_batch, y_batch = batch
             input_features = X_batch.shape[1]
             break
-
-        class NeuralNetwork(nn.Module):
-            def __init__(self):
-                super().__init__() # 부모 클래스 초기화 메서드를 호출
-                self.flatten = nn.Flatten() # 보통 첫 번째 차원은 유지하고 나머지 차원을 모두 곱해서 2차원 텐서로 만듦
-                self.linear_relu_stack = nn.Sequential(
-                    nn.Linear(input_features, 512),
-                    nn.ReLU(),
-                    nn.Dropout(0.5),
-                    nn.Linear(512, 4),
-                )
-
-            def forward(self, x):
-                x = self.flatten(x)
-                logits = self.linear_relu_stack(x)
-                return logits
-        
-        # 가중치 초기화
-        def init_weights(m) :
-            if isinstance(m, nn.Linear) :
-                # He 초기화
-                nn.init.kaiming_normal_(m.weight, nonlinearity = 'relu')
-                if m.bias is not None:
-                    nn.init.zeros_(m.bias)
-        
+               
         # 모델 정의 및 훈련
         model = NeuralNetwork()
         # 가중치 초기화 적용
         model.apply(init_weights)
         model = model.to(device)
-        
+
         criterion = nn.CrossEntropyLoss()
-        optimizer = torch.optim.Adam(model.parameters(), lr = 0.001)
+        optimizer = torch.optim.Adam(model.parameters(),
+                                     lr = learning_rate,
+                                     weight_decay = 1e-3
+                                     )
+        scheduler = StepLR(optimizer,
+                           step_size = 20,
+                           gamma = 0.1)
 
         # EarlyStopping 객체 생성
-        early_stopping = EarlyStopping(patience = 40, delta = 0.05)
+        early_stopping = EarlyStopping(patience = 80, delta = 0.01)
 
         # 훈련 루프
         num_epochs = 161  # 에폭 수
@@ -336,7 +339,6 @@ for iteration in range(num_of_tests) :
             val_acc = 100 * val_correct / val_total
             if epoch % 20 == 0:
                 print(f"Validation Loss: {val_loss:.4f}, Validation Accuracy: {val_acc:.2f}%")
-                continue
 
             # EarlyStopping 체크
             if early_stopping(val_loss, model):
