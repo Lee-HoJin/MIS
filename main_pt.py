@@ -213,13 +213,10 @@ class NeuralNetwork(nn.Module):
         super().__init__() # 부모 클래스 초기화 메서드를 호출
         self.flatten = nn.Flatten() # 보통 첫 번째 차원은 유지하고 나머지 차원을 모두 곱해서 2차원 텐서로 만듦
         self.linear_relu_stack = nn.Sequential(
-            nn.Linear(input_features, 256),
+            nn.Linear(input_features, 512),
             nn.ReLU(),
             nn.Dropout(0.5),
-            nn.Linear(256, 256),
-            nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(256, 4),
+            nn.Linear(512, 4),
         )
 
     def forward(self, x):
@@ -277,7 +274,7 @@ for iteration in range(num_of_tests) :
                            gamma = 0.1)
 
         # EarlyStopping 객체 생성
-        early_stopping = EarlyStopping(patience = 80, delta = 0.01)
+        early_stopping = EarlyStopping(patience = 40, delta = 0.01)
 
         # 훈련 루프
         num_epochs = 161  # 에폭 수
