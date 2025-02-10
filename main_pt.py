@@ -213,16 +213,17 @@ model3_accuracy_sum = 0
 ###### Hyper Params ######
 ##########################
 
-num_of_tests = 5
-batch_size_ = 64
-learning_rate = 0.001
+num_of_tests = 10
+batch_size_ = 32
+learning_rate = 1e-4
+n_epochs = 500
 
 weight_decay = 1e-3
 scheduler_gamma = 0.1
 
 ## EarlyStopping
 patience = 50
-delta = 1e-5
+delta = 1e-2
 
 input_features = 6
 
@@ -290,10 +291,10 @@ for iteration in range(num_of_tests) :
                 super().__init__() # 부모 클래스 초기화 메서드를 호출
                 self.flatten = nn.Flatten() # 보통 첫 번째 차원은 유지하고 나머지 차원을 모두 곱해서 2차원 텐서로 만듦
                 self.linear_relu_stack = nn.Sequential(
-                    nn.Linear(input_features, 512),
+                    nn.Linear(input_features, 128),
                     nn.ReLU(),
                     nn.Dropout(0.5),
-                    nn.Linear(512, 4)
+                    nn.Linear(128, 4)
                 )
 
             def forward(self, x):
@@ -323,15 +324,11 @@ for iteration in range(num_of_tests) :
                            step_size = 20,
                            gamma = scheduler_gamma)
 
-
-        # 훈련 루프
-        num_epochs = 161  # 에폭 수
-
         # 손실 기록용 리스트 초기화
         train_losses = []
         val_losses = []
 
-        for epoch in range(num_epochs):
+        for epoch in range(n_epochs):
             model.train()  # 모델을 훈련 모드로 설정
             running_loss = 0.0
             correct = 0
@@ -366,7 +363,7 @@ for iteration in range(num_of_tests) :
             train_losses.append(epoch_loss)
             epoch_acc = 100 * correct / total
             if epoch % 20 == 0 :
-                print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {epoch_loss:.4f}, Accuracy: {epoch_acc:.2f}%")
+                print(f"Epoch [{epoch+1}/{n_epochs}], Loss: {epoch_loss:.4f}, Accuracy: {epoch_acc:.2f}%")
 
             # 검증 정확도 계산 (매 에폭마다 검증 데이터로 성능 평가)
             model.eval()
