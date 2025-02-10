@@ -216,6 +216,8 @@ scheduler_gamma = 0.1
 patience = 50
 delta = 1e-5
 
+input_features = 6
+
 class NeuralNetwork(nn.Module):
     def __init__(self):
         super().__init__() # 부모 클래스 초기화 메서드를 호출
@@ -239,32 +241,64 @@ def init_weights(m) :
         if m.bias is not None:
             nn.init.zeros_(m.bias)
 
+# 3 Datasets for 3 models respectively
+
+for i, X in enumerate(models, 1) :
+    # 데이터셋 생성
+    dataset = CustomDataset(data[X], data[y])
+
+    # 데이터셋을 훈련/검증/테스트 세트로 분리
+    train_size = int(0.8 * len(dataset))  # 80% 훈련 데이터
+    val_size = int(0.1 * len(dataset))  # 10% 검증 데이터
+    test_size = len(dataset) - train_size - val_size  # 나머지 10% 테스트 데이터
+
+    # 데이터셋을 훈련, 검증, 테스트로 분리
+    train_dataset, val_dataset, test_dataset = random_split(dataset, [train_size, val_size, test_size])
+
+    # 데이터 로더 생성
+    batch_size = batch_size_
+
+    if i == 1:
+        train_loader_1 = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+        val_loader_1 = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+        test_loader_1 = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+
+    elif i == 2:
+        train_loader_2 = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+        val_loader_2 = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+        test_loader_2 = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+
+    else:
+        train_loader_3 = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+        val_loader_3 = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+        test_loader_3 = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+
+
 for iteration in range(num_of_tests) :
     # 각 모델에 대해 반복문 실행 후 성능 기록
     for i, X in enumerate(models, 1):
         print(f"__Model {i}  iteration {iteration + 1}")
 
-        # 데이터셋 생성
-        dataset = CustomDataset(data[X], data[y])
+        # EarlyStopping 객체 생성
+        early_stopping = EarlyStopping(patience = patience, delta = delta)
 
-        # 데이터셋을 훈련/검증/테스트 세트로 분리
-        train_size = int(0.8 * len(dataset))  # 80% 훈련 데이터
-        val_size = int(0.1 * len(dataset))  # 10% 검증 데이터
-        test_size = len(dataset) - train_size - val_size  # 나머지 10% 테스트 데이터
+        if i == 1:
+            train_loader = train_loader_1
+            val_loader = val_loader_1
+            test_loader = test_loader_1
+            input_features = len(X_model_1)
 
-        # 데이터셋을 훈련, 검증, 테스트로 분리
-        train_dataset, val_dataset, test_dataset = random_split(dataset, [train_size, val_size, test_size])
+        elif i == 2:
+            train_loader = train_loader_2
+            val_loader = val_loader_2
+            test_loader = test_loader_2
+            input_features = len(X_model_2)
 
-        # 데이터 로더 생성
-        batch_size = batch_size_
-        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-        val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
-        test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
-
-        for batch in train_loader:
-            X_batch, y_batch = batch
-            input_features = X_batch.shape[1]
-            break
+        else :
+            train_loader = train_loader_3
+            val_loader = val_loader_3
+            test_loader = test_loader_3
+            input_features = len(X_model_3)
                
         # 모델 정의 및 훈련
         model = NeuralNetwork()
@@ -281,8 +315,6 @@ for iteration in range(num_of_tests) :
                            step_size = 20,
                            gamma = scheduler_gamma)
 
-        # EarlyStopping 객체 생성
-        early_stopping = EarlyStopping(patience = patience, delta = delta)
 
         # 훈련 루프
         num_epochs = 161  # 에폭 수
@@ -371,7 +403,7 @@ for iteration in range(num_of_tests) :
 
         test_acc = 100 * test_correct / test_total
         test_loss /= len(test_loader)  # 평균 손실
-        print(test_acc)
+        print("Final Test Accuracy", test_acc)
     
         if i == 1 :
             model1_accuracy_sum += test_acc
