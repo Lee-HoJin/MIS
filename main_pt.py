@@ -217,7 +217,7 @@ num_of_tests = 5
 batch_size_ = 64
 learning_rate = 0.001
 
-weight_decay = 1e-2
+weight_decay = 1e-3
 scheduler_gamma = 0.1
 
 ## EarlyStopping
@@ -225,29 +225,6 @@ patience = 50
 delta = 1e-5
 
 input_features = 6
-
-class NeuralNetwork(nn.Module):
-    def __init__(self):
-        super().__init__() # 부모 클래스 초기화 메서드를 호출
-        self.flatten = nn.Flatten() # 보통 첫 번째 차원은 유지하고 나머지 차원을 모두 곱해서 2차원 텐서로 만듦
-        self.linear_relu_stack = nn.Sequential(
-            nn.Linear(input_features, 8),
-            nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(8, 4)
-        )
-
-    def forward(self, x):
-        x = self.flatten(x)
-        logits = self.linear_relu_stack(x)
-        return logits
-    
-def init_weights(m) :
-    if isinstance(m, nn.Linear) :
-        # He 초기화
-        nn.init.kaiming_normal_(m.weight, nonlinearity = 'relu')
-        if m.bias is not None:
-            nn.init.zeros_(m.bias)
 
 # 3 Datasets for 3 models respectively
 
@@ -307,6 +284,29 @@ for iteration in range(num_of_tests) :
             val_loader = val_loader_3
             test_loader = test_loader_3
             input_features = len(X_model_3)
+            
+        class NeuralNetwork(nn.Module):
+            def __init__(self):
+                super().__init__() # 부모 클래스 초기화 메서드를 호출
+                self.flatten = nn.Flatten() # 보통 첫 번째 차원은 유지하고 나머지 차원을 모두 곱해서 2차원 텐서로 만듦
+                self.linear_relu_stack = nn.Sequential(
+                    nn.Linear(input_features, 512),
+                    nn.ReLU(),
+                    nn.Dropout(0.5),
+                    nn.Linear(512, 4)
+                )
+
+            def forward(self, x):
+                x = self.flatten(x)
+                logits = self.linear_relu_stack(x)
+                return logits
+            
+        def init_weights(m) :
+            if isinstance(m, nn.Linear) :
+                # He 초기화
+                nn.init.kaiming_normal_(m.weight, nonlinearity = 'relu')
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
                
         # 모델 정의 및 훈련
         model = NeuralNetwork()
