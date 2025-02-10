@@ -204,19 +204,28 @@ model1_accuracy_sum = 0
 model2_accuracy_sum = 0
 model3_accuracy_sum = 0
 
+#### Hyper Params
+
 num_of_tests = 10
 batch_size_ = 64
-learning_rate = 0.0005
+learning_rate = 0.01
+
+weight_decay = 1e-2
+scheduler_gamma = 0.1
+
+## EarlyStopping
+patience = 50
+delta = 1e-5
 
 class NeuralNetwork(nn.Module):
     def __init__(self):
         super().__init__() # 부모 클래스 초기화 메서드를 호출
         self.flatten = nn.Flatten() # 보통 첫 번째 차원은 유지하고 나머지 차원을 모두 곱해서 2차원 텐서로 만듦
         self.linear_relu_stack = nn.Sequential(
-            nn.Linear(input_features, 512),
+            nn.Linear(input_features, 8),
             nn.ReLU(),
             nn.Dropout(0.5),
-            nn.Linear(512, 4),
+            nn.Linear(8, 4)
         )
 
     def forward(self, x):
@@ -265,16 +274,16 @@ for iteration in range(num_of_tests) :
         model = model.to(device)
 
         criterion = nn.CrossEntropyLoss()
-        optimizer = torch.optim.Adam(model.parameters(),
+        optimizer = torch.optim.AdamW(model.parameters(),
                                      lr = learning_rate,
-                                     weight_decay = 1e-3
+                                     weight_decay = weight_decay
                                      )
         scheduler = StepLR(optimizer,
                            step_size = 20,
-                           gamma = 0.1)
+                           gamma = scheduler_gamma)
 
         # EarlyStopping 객체 생성
-        early_stopping = EarlyStopping(patience = 40, delta = 0.01)
+        early_stopping = EarlyStopping(patience = patience, delta = delta)
 
         # 훈련 루프
         num_epochs = 161  # 에폭 수
@@ -372,6 +381,7 @@ for iteration in range(num_of_tests) :
             model3_accuracy_sum += test_acc
 
     print("")
+    scheduler.step()
 
 # 전체 테스트 반복 결과의 평균
 model1_avg_accuracy = model1_accuracy_sum / num_of_tests
