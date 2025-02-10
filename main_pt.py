@@ -208,10 +208,14 @@ model1_accuracy_sum = 0
 model2_accuracy_sum = 0
 model3_accuracy_sum = 0
 
-#### Hyper Params
-num_of_tests = 10
+
+##########################
+###### Hyper Params ######
+##########################
+
+num_of_tests = 5
 batch_size_ = 64
-learning_rate = 0.01
+learning_rate = 0.001
 
 weight_decay = 1e-2
 scheduler_gamma = 0.1
@@ -417,7 +421,7 @@ for iteration in range(num_of_tests) :
         print("Final Test Accuracy", test_acc)
 
         # 과적합 확인용 plot
-        if iteration == 1: 
+        if iteration == 0: 
             plt.figure(figsize=(8, 6))
             plt.plot(train_losses, label='Training Loss')
             plt.plot(val_losses, label='Validation Loss')
