@@ -205,7 +205,6 @@ model2_accuracy_sum = 0
 model3_accuracy_sum = 0
 
 #### Hyper Params
-
 num_of_tests = 10
 batch_size_ = 64
 learning_rate = 0.01
@@ -372,6 +371,7 @@ for iteration in range(num_of_tests) :
 
         test_acc = 100 * test_correct / test_total
         test_loss /= len(test_loader)  # 평균 손실
+        print(test_acc)
     
         if i == 1 :
             model1_accuracy_sum += test_acc
