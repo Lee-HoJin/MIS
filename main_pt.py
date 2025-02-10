@@ -10,6 +10,10 @@ from torch.utils.data import DataLoader, Dataset, random_split
 from torchvision import datasets, transforms
 from torch.optim.lr_scheduler import StepLR
 
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
 
@@ -318,6 +322,11 @@ for iteration in range(num_of_tests) :
 
         # 훈련 루프
         num_epochs = 161  # 에폭 수
+
+        # 손실 기록용 리스트 초기화
+        train_losses = []
+        val_losses = []
+
         for epoch in range(num_epochs):
             model.train()  # 모델을 훈련 모드로 설정
             running_loss = 0.0
@@ -350,6 +359,7 @@ for iteration in range(num_of_tests) :
                 correct += (predicted == y_batch).sum().item()
 
             epoch_loss = running_loss / len(train_loader)
+            train_losses.append(epoch_loss)
             epoch_acc = 100 * correct / total
             if epoch % 20 == 0 :
                 print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {epoch_loss:.4f}, Accuracy: {epoch_acc:.2f}%")
@@ -373,6 +383,7 @@ for iteration in range(num_of_tests) :
                     val_correct += (predicted == y_batch).sum().item()
 
             val_loss /= len(val_loader)
+            val_losses.append(val_loss)
             val_acc = 100 * val_correct / val_total
             if epoch % 20 == 0:
                 print(f"Validation Loss: {val_loss:.4f}, Validation Accuracy: {val_acc:.2f}%")
@@ -404,6 +415,19 @@ for iteration in range(num_of_tests) :
         test_acc = 100 * test_correct / test_total
         test_loss /= len(test_loader)  # 평균 손실
         print("Final Test Accuracy", test_acc)
+
+        # 과적합 확인용 plot
+        if iteration == 1: 
+            plt.figure(figsize=(8, 6))
+            plt.plot(train_losses, label='Training Loss')
+            plt.plot(val_losses, label='Validation Loss')
+            plt.axhline(y=test_loss, label='Test Loss', linestyle='--', color='r')
+            plt.title(f"Overfitting Test, Model {i} Iteration {iteration+1}")
+            plt.xlabel('Epochs')
+            plt.ylabel('Loss')
+            plt.legend()
+            plt.savefig(f"Overfitting_Test_Model_{i}.png", dpi=300, bbox_inches="tight")
+            plt.close()
     
         if i == 1 :
             model1_accuracy_sum += test_acc
